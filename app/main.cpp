@@ -2,6 +2,7 @@
 //   pdfview-app file.pdf     (or drop a PDF on the window)
 #include <glad/glad.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <initializer_list>
 #include <string>
@@ -71,15 +72,19 @@ int main(int argc, char** argv)
         ImGui::End();
     });
 
-    // a couple of extra frames after input so hover states settle
-    int extra = 2;
+    // wait for events unless the viewer is busy. ImGui takes queued input a
+    // step per frame (a click is a press, then a release), so every wake up
+    // draws a few frames.
+    int extra = 0;
     while (!window.ShouldClose()) {
-        if (viewer.needsFrames() || extra > 0)
+        if (viewer.needsFrames() || extra > 0) {
             window.PollEvents();
-        else
+            extra = std::max(0, extra - 1);
+        } else {
             window.WaitEvents();
-        extra = viewer.needsFrames() ? 2 : extra - 1;
-        if (ImGui::GetIO().MouseDown[0] || ImGui::GetIO().MouseDown[2]) extra = 2;
+            extra = 3;
+        }
+        if (ImGui::GetIO().MouseDown[0] || ImGui::GetIO().MouseDown[2]) extra = 3;
         glClearColor(0.1f, 0.1f, 0.11f, 1);
         glClear(GL_COLOR_BUFFER_BIT);
         gui.Draw();

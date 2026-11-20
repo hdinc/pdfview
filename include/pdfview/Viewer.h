@@ -39,6 +39,10 @@ public:
     // state(). Replaces what was open.
     void open(const std::string& path);
     void close();
+    // frees the GPU tiles and stops rendering, keeping the document and the
+    // view; for a viewer that isn't shown (a background tab). The next
+    // draw() asks for its tiles again.
+    void releaseTextures();
 
     enum class State { Empty, Loading, Ready, Failed };
     State state() const;

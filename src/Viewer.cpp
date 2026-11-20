@@ -44,6 +44,17 @@ void Viewer::open(const std::string& path)
     });
 }
 
+void Viewer::releaseTextures()
+{
+    for (auto& [k, t] : mTiles)
+        freeTex(t);
+    mTiles.clear();
+    mPending.clear();
+    mBytes = 0;
+    mLastWanted.clear();
+    if (mWorker) mWorker->want({});
+}
+
 void Viewer::close()
 {
     mWorker.reset(); // joins the thread before the textures go

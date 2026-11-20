@@ -59,9 +59,17 @@ poppler::page* Document::page(int i)
     return p.get();
 }
 
-std::string Document::title() const { return mDoc->get_title().to_utf8().data(); }
+// poppler's UTF-8 is a byte array: not null terminated, and empty (a null
+// data()) when the field is missing
+static std::string utf8(const poppler::ustring& s)
+{
+    auto b = s.to_utf8();
+    return std::string(b.begin(), b.end());
+}
 
-std::string Document::author() const { return mDoc->get_author().to_utf8().data(); }
+std::string Document::title() const { return utf8(mDoc->get_title()); }
+
+std::string Document::author() const { return utf8(mDoc->get_author()); }
 
 void Document::pixelSize(PageSize s, double scale, int& w, int& h)
 {
