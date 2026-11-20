@@ -1,0 +1,6 @@
+[submodule "deps/Hd"]
+	path = deps/Hd
+	url = https://github.com/hdinc/Hd
+[submodule "deps/doctest"]
+	path = deps/doctest
+	url = https://github.com/doctest/doctest
