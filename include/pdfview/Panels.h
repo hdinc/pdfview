@@ -34,7 +34,12 @@ private:
     char mFilter[128] = "";
     int mLastCurrent = -1;
     int mLastCols = 0;
+    float mLastCellWidth = 0;
+    float mLastRowPadding = 0;
+    float mLastScroll = 0;
     const Viewer* mLastViewer = nullptr;
+    int mAnchorPage = -1;
+    float mAnchorTop = 0; // screen Y of the anchor thumbnail's top edge
     int mDragPage = -1;
     bool mDragged = false;
 };

@@ -193,3 +193,57 @@
 ### Next steps
 - Possibly ship a Breeze-like custom theme JSON.
 - The earlier entry's next steps still stand: Linux, the by-hand checks, pdforg.
+
+## 2026-11-21 23:58 +03:00 — Keep thumbnails in view during sidebar resize
+
+### Changes made
+
+- Saved the original batch in separate pdfview and Hd stashes named `Previous viewer changes for
+  individual review`. The thumbnail resize fix is in the working tree for review before committing.
+- Recovered the previous agent's page-and-row-offset approach in `ThumbnailPanel::draw`. The anchor now
+  survives width changes within the same column count and repeated column reflows. The grid renders at
+  the requested scroll position on the resize frame, and the result clamps to the new scroll range.
+
+### Testing
+
+- Built the Windows app in `build/thumb-resize-review`. All six CTest targets passed, including Hd.
+- A headless ImGui check with a 61-page PDF verified the anchor page, relative row offset, and hit
+  testing through same-column resizes and a 2→3→4→1→2 column sequence. It also covered clamping near
+  the bottom and following viewer navigation. The interactive splitter drag awaits user review.
+
+## 2026-11-22 00:10 +03:00 — Set thumbnail width independently of sidebar width
+
+### Changes made
+
+- Ctrl+wheel changes the preferred thumbnail image width. Thumbnails keep that width and wrap to the
+  next row when the sidebar runs out of room. If one thumbnail would be too wide, it shrinks to fit
+  and returns to the preferred width when there is room. The resize anchor keeps the visible row in
+  view during reflow.
+- The combined thumbnail resize change is pending user review before committing.
+
+### Testing
+
+- Built the Windows app in `build/thumb-width-review`. All six CTest targets passed.
+- A headless ImGui check verified the drawn image width after Ctrl+wheel with and without column
+  changes, the narrow sidebar fallback, and the anchor during repeated resizes. Interactive review
+  is pending.
+
+## 2026-11-22 00:13 +03:00 — Restore the previous thumbnail sizing behavior
+
+- Reverted independent thumbnail sizing at the user's request. Thumbnails again fill the available
+  width across their columns. The original sidebar resize anchoring fix is still in the working
+  tree for review.
+- Rebuilt the Windows app in `build/thumb-resize-review`. All six CTest targets and the headless
+  ImGui resize check passed.
+
+## 2026-11-22 00:22 +03:00 — Preserve the first visible thumbnail's screen position
+
+- Sidebar resize now anchors the top edge of the first thumbnail image that intersects the viewport,
+  including a partially visible image. The previous proportional row offset shifted that edge as the
+  thumbnail height changed. The new scroll target uses the measured screen Y and respects the scroll
+  range and the thumbnail's visibility.
+- The Windows build in `build/thumb-position-review` passed all six CTest targets. A headless ImGui
+  test measured the drawn top edge of a partially visible thumbnail in a mixed-size PDF. The old
+  build moved it 28 pixels during a same-column resize. The updated build held it within half a pixel
+  through same-column resizes and a 2→3→4→1→2 column sequence. The test also covered scrolling near
+  the bottom and following viewer navigation. The interactive splitter drag awaits user review.

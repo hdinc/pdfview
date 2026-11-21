@@ -1,5 +1,7 @@
 #include <pdfview/Panels.h>
 
+#include <imgui_internal.h>
+
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -132,7 +134,11 @@ void ThumbnailPanel::draw(Viewer& v)
     bool filtering = mFilter[0] && v.findText() == mFilter;
     if (filtering && v.matchCount() == 0) ImGui::TextDisabled(v.searching() ? "Searching..." : "No pages match.");
 
-    ImGui::BeginChild("##thumbs", {0, 0}, ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollWithMouse);
+    if (!ImGui::BeginChild("##thumbs", {0, 0}, ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollWithMouse)) {
+        ImGui::EndChild();
+        ImGui::PopID();
+        return;
+    }
     ImGuiIO& io = ImGui::GetIO();
     ImGuiStyle& st = ImGui::GetStyle();
     // sizes are at scale 1: they follow the UI's scale
@@ -149,56 +155,95 @@ void ThumbnailPanel::draw(Viewer& v)
     for (int p = 0; p < v.pageCount(); p++)
         if (!filtering || v.pageHasMatches(p)) pages.push_back(p);
 
-    float avail = ImGui::GetContentRegionAvail().x;
+    float avail = std::max(1.0f, ImGui::GetContentRegionAvail().x);
     float gap = st.ItemSpacing.x * 2;
     float px = size * sc; // the width on screen
     int cols = std::max(1, static_cast<int>((avail + gap) / (px + gap)));
     float cellW = (avail - gap * (cols - 1)) / cols;
     float pad = 6 * sc, labelH = ImGui::GetTextLineHeightWithSpacing();
-    float imgW = cellW - 2 * pad;
+    float imgW = std::max(1.0f, cellW - 2 * pad);
+    float rowPadding = 2 * pad + labelH + st.ItemSpacing.y;
+    auto imageHeight = [&](int page) {
+        PageSize s = v.pageSize(page);
+        return static_cast<float>(imgW * s.h / s.w);
+    };
     // row heights: the tallest page in each
     size_t rows = (pages.size() + static_cast<size_t>(cols) - 1) / static_cast<size_t>(cols);
     std::vector<float> rowY(rows + 1, 0);
     for (size_t r = 0; r < rows; r++) {
         float h = 0;
-        for (size_t k = r * cols; k < std::min(pages.size(), (r + 1) * cols); k++) {
-            PageSize s = v.pageSize(pages[k]);
-            h = std::max(h, static_cast<float>(imgW * s.h / s.w));
-        }
-        rowY[r + 1] = rowY[r] + h + 2 * pad + labelH + st.ItemSpacing.y;
+        for (size_t k = r * cols; k < std::min(pages.size(), (r + 1) * cols); k++)
+            h = std::max(h, imageHeight(pages[k]));
+        rowY[r + 1] = rowY[r] + h + rowPadding;
     }
+    auto imageTop = [&](size_t row, float height) {
+        float tallest = rowY[row + 1] - rowY[row] - rowPadding;
+        return rowY[row] + pad + (tallest - height) / 2;
+    };
+
+    auto rowOf = [&](int page) {
+        auto it = std::lower_bound(pages.begin(), pages.end(), page);
+        return it != pages.end() && *it == page ? static_cast<size_t>(it - pages.begin()) / cols : rows;
+    };
+
+    ImGuiWindow* window = ImGui::GetCurrentWindow();
+    float contentHeight = std::max(1.0f, std::floor(rowY.back()));
+    float wh = window->InnerRect.GetHeight();
+    float maxScroll = std::max(0.0f, contentHeight + 2 * window->WindowPadding.y - wh);
+    float actualScroll = ImGui::GetScrollY();
+    float sy = std::min(actualScroll, maxScroll);
+    ImVec2 base = ImGui::GetCursorScreenPos();
+    base.y += actualScroll;
+    const ImRect clip = window->ClipRect;
 
     int cur = v.currentPage();
-    // follow the viewer's page unless the user moved it from here
-    // (or when the layout or the document changed: the old scroll offset
-    // means nothing then)
-    bool relaid = cols != mLastCols || &v != mLastViewer;
-    mLastCols = cols;
-    mLastViewer = &v;
-    if ((cur != mLastCurrent || relaid) && mDragPage < 0) {
-        auto it = std::find(pages.begin(), pages.end(), cur);
-        if (it != pages.end()) {
-            size_t r = static_cast<size_t>(it - pages.begin()) / static_cast<size_t>(cols);
-            float top = rowY[r], bottom = rowY[r + 1], sy = ImGui::GetScrollY(), wh = ImGui::GetWindowHeight();
-            if (top < sy || bottom > sy + wh) ImGui::SetScrollY(top - wh / 3);
+    bool otherDoc = &v != mLastViewer;
+    bool resized = cols != mLastCols || cellW != mLastCellWidth || rowPadding != mLastRowPadding;
+    bool follow = (otherDoc || cur != mLastCurrent) && mDragPage < 0;
+    size_t anchorRow = otherDoc ? rows : rowOf(mAnchorPage);
+    bool anchored = resized && !follow && anchorRow < rows;
+    if (anchored) {
+        float h = imageHeight(mAnchorPage);
+        float top = base.y + imageTop(anchorRow, h);
+        // If the page shrank, keep at least a pixel in view where the scroll range permits.
+        float targetTop = std::max(mAnchorTop, clip.Min.y - h + 1);
+        sy = top - targetTop;
+    } else if (follow) {
+        if (size_t r = rowOf(cur); r < rows) {
+            if (rowY[r] < sy || rowY[r + 1] > sy + wh)
+                sy = rowY[r] - wh / 3;
         }
     }
+    sy = std::clamp(std::round(sy), 0.0f, maxScroll);
+    if (sy != actualScroll) ImGui::SetScrollY(sy);
+    if (!anchored && (follow || anchorRow == rows || std::abs(sy - mLastScroll) >= 1))
+        mAnchorPage = -1;
+    mLastScroll = sy;
     mLastCurrent = cur;
+    mLastCols = cols;
+    mLastCellWidth = cellW;
+    mLastRowPadding = rowPadding;
+    mLastViewer = &v;
 
-    ImVec2 base = ImGui::GetCursorScreenPos();
-    float sy = ImGui::GetScrollY(), wh = ImGui::GetWindowHeight();
+    // ImGui applies SetScrollY at the next BeginChild. Position this frame's
+    // items at the target scroll so the grid stays anchored during the drag.
+    base.y -= sy;
     ImDrawList* dl = ImGui::GetWindowDrawList();
     ImU32 accent = ImGui::GetColorU32(ImGuiCol_HeaderActive);
-    size_t r0 = static_cast<size_t>(std::upper_bound(rowY.begin(), rowY.end(), sy) - rowY.begin());
+    size_t r0 = static_cast<size_t>(std::upper_bound(rowY.begin(), rowY.end(), clip.Min.y - base.y) - rowY.begin());
     r0 = r0 > 0 ? r0 - 1 : 0;
-    for (size_t r = r0; r < rows && rowY[r] < sy + wh; r++) {
+    for (size_t r = r0; r < rows && rowY[r] < clip.Max.y - base.y; r++) {
         for (size_t k = r * cols; k < std::min(pages.size(), (r + 1) * cols); k++) {
             int p = pages[k];
             PageSize s = v.pageSize(p);
-            float h = static_cast<float>(imgW * s.h / s.w);
+            float h = imageHeight(p);
             float rowH = rowY[r + 1] - rowY[r] - st.ItemSpacing.y;
             ImVec2 cell{base.x + (k % cols) * (cellW + gap), base.y + rowY[r]};
-            ImVec2 i0{cell.x + pad, cell.y + pad + (rowH - labelH - 2 * pad - h) / 2}, i1{i0.x + imgW, i0.y + h};
+            ImVec2 i0{cell.x + pad, base.y + imageTop(r, h)}, i1{i0.x + imgW, i0.y + h};
+            if (mAnchorPage < 0 && i0.y < clip.Max.y && i1.y > clip.Min.y) {
+                mAnchorPage = p;
+                mAnchorTop = i0.y;
+            }
             ImGui::SetCursorScreenPos(cell);
             ImGui::PushID(p);
             ImGui::InvisibleButton("##t", {cellW, rowH});
@@ -241,8 +286,9 @@ void ThumbnailPanel::draw(Viewer& v)
             ImGui::PopID();
         }
     }
-    ImGui::SetCursorScreenPos(base);
-    ImGui::Dummy({avail, std::max(1.0f, rowY[rows])});
+    // Item positions may be translated or clipped. The scroll range still
+    // covers the entire grid in its original content coordinates.
+    window->DC.CursorMaxPos.y = window->DC.CursorStartPos.y + contentHeight;
     ImGui::EndChild();
     ImGui::PopID();
 }
