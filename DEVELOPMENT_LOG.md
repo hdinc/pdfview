@@ -223,6 +223,18 @@
   sharper texture at 2× scale and verified fallback, cache reuse under a reduced texture budget, the
   size cap, and the previous resize behavior. Visual review of the Windows build is pending.
 
+## 2026-11-22 00:33 +03:00 — Add thumbnail display options and preserve scroll on selection
+
+- The thumbnail context menu now has separate `Show Page Numbers` and `Gaps Between Thumbnails`
+  options, both saved in the app's settings. Hover shows the page label when numbers are hidden.
+  Compact thumbnails omit the gutters, padding, and shadows, with an inset outline for selection.
+- Clicking a thumbnail jumps to the page and leaves the sidebar scroll position in place, including
+  when the selected thumbnail is partly visible.
+- Built the Windows app in `build/thumb-options-review` and passed all six CTest targets. Headless
+  checks exercised selection without sidebar movement, both context menu toggles, touching thumbnail
+  edges, settings round-trip, and the previous resize behavior. The options and click behavior are
+  ready for visual review.
+
 ## 2026-11-22 00:10 +03:00 — Set thumbnail width independently of sidebar width
 
 ### Changes made

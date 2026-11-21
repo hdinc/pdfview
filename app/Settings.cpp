@@ -71,6 +71,10 @@ void Settings::load(const std::string& path)
                 sidebarTab = static_cast<int>(toNum(v));
             else if (k == "thumb_size")
                 thumbSize = static_cast<float>(toNum(v, thumbSize));
+            else if (k == "thumb_labels")
+                thumbLabels = v == "1";
+            else if (k == "thumb_gaps")
+                thumbGaps = v == "1";
             else if (k == "overview_columns")
                 overviewColumns = static_cast<int>(toNum(v, overviewColumns));
             else if (k == "columns")
@@ -151,6 +155,8 @@ bool Settings::save(const std::string& path) const
     o << "sidebar_width=" << num(sidebarWidth) << "\n";
     o << "sidebar_tab=" << sidebarTab << "\n";
     o << "thumb_size=" << num(thumbSize) << "\n";
+    o << "thumb_labels=" << (thumbLabels ? 1 : 0) << "\n";
+    o << "thumb_gaps=" << (thumbGaps ? 1 : 0) << "\n";
     o << "overview_columns=" << overviewColumns << "\n";
     o << "columns=" << defaultMode.columns << "\n";
     o << "first_alone=" << (defaultMode.firstAlone ? 1 : 0) << "\n";

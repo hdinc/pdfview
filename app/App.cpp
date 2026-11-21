@@ -76,6 +76,8 @@ App::App(Hd::Window& window, Hd::Gui& gui, const std::vector<std::string>& files
     addActions();
     mActions.load(mSettings.shortcuts);
     mThumbs.size = mSettings.thumbSize;
+    mThumbs.showLabels = mSettings.thumbLabels;
+    mThumbs.gaps = mSettings.thumbGaps;
     if (!files.empty())
         open(files);
     else {
@@ -110,6 +112,8 @@ void App::saveSettings()
         if (mTabs[i]->id == mActive) mSettings.activeTab = static_cast<int>(i);
     }
     mSettings.thumbSize = mThumbs.size;
+    mSettings.thumbLabels = mThumbs.showLabels;
+    mSettings.thumbGaps = mThumbs.gaps;
     mSettings.toolbarSize = static_cast<int>(Hd::getToolbarSize());
     Hd::Window::Geometry g = mWindow.getGeometry();
     mSettings.winX = g.x;

@@ -34,6 +34,8 @@ struct Settings {
     float sidebarWidth = 300;
     int sidebarTab = 0; // thumbnails, contents, bookmarks
     float thumbSize = 150;
+    bool thumbLabels = true;
+    bool thumbGaps = true;
     int overviewColumns = 4;
     pdfview::ViewMode defaultMode;
     std::string shortcuts; // Actions::save()

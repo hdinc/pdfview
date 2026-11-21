@@ -150,19 +150,26 @@ void ThumbnailPanel::draw(Viewer& v)
         else
             ImGui::SetScrollY(ImGui::GetScrollY() - io.MouseWheel * ImGui::GetTextLineHeight() * 5);
     }
+    if (ImGui::BeginPopupContextWindow("##thumbmenu", ImGuiPopupFlags_MouseButtonRight)) {
+        ImGui::MenuItem("Show Page Numbers", nullptr, &showLabels);
+        ImGui::MenuItem("Gaps Between Thumbnails", nullptr, &gaps);
+        ImGui::EndPopup();
+    }
 
     std::vector<int> pages;
     for (int p = 0; p < v.pageCount(); p++)
         if (!filtering || v.pageHasMatches(p)) pages.push_back(p);
 
     float avail = std::max(1.0f, ImGui::GetContentRegionAvail().x);
-    float gap = st.ItemSpacing.x * 2;
+    float gap = gaps ? st.ItemSpacing.x * 2 : 0;
+    float rowGap = gaps ? st.ItemSpacing.y : 0;
     float px = size * sc; // the width on screen
     int cols = std::max(1, static_cast<int>((avail + gap) / (px + gap)));
     float cellW = (avail - gap * (cols - 1)) / cols;
-    float pad = 6 * sc, labelH = ImGui::GetTextLineHeightWithSpacing();
+    float pad = gaps ? 6 * sc : 0;
+    float labelH = showLabels ? ImGui::GetTextLineHeightWithSpacing() : 0;
     float imgW = std::max(1.0f, cellW - 2 * pad);
-    float rowPadding = 2 * pad + labelH + st.ItemSpacing.y;
+    float rowPadding = 2 * pad + labelH + rowGap;
     auto imageHeight = [&](int page) {
         PageSize s = v.pageSize(page);
         return static_cast<float>(imgW * s.h / s.w);
@@ -178,7 +185,7 @@ void ThumbnailPanel::draw(Viewer& v)
     }
     auto imageTop = [&](size_t row, float height) {
         float tallest = rowY[row + 1] - rowY[row] - rowPadding;
-        return rowY[row] + pad + (tallest - height) / 2;
+        return rowY[row] + pad + (gaps ? (tallest - height) / 2 : 0);
     };
 
     auto rowOf = [&](int page) {
@@ -239,7 +246,7 @@ void ThumbnailPanel::draw(Viewer& v)
             int p = pages[k];
             PageSize s = v.pageSize(p);
             float h = imageHeight(p);
-            float rowH = rowY[r + 1] - rowY[r] - st.ItemSpacing.y;
+            float rowH = rowY[r + 1] - rowY[r] - rowGap;
             ImVec2 cell{base.x + (k % cols) * (cellW + gap), base.y + rowY[r]};
             ImVec2 i0{cell.x + pad, base.y + imageTop(r, h)}, i1{i0.x + imgW, i0.y + h};
             if (mAnchorPage < 0 && i0.y < clip.Max.y && i1.y > clip.Min.y) {
@@ -250,9 +257,11 @@ void ThumbnailPanel::draw(Viewer& v)
             ImGui::PushID(p);
             ImGui::InvisibleButton("##t", {cellW, rowH});
             bool hovered = ImGui::IsItemHovered();
-            if (p == cur) dl->AddRectFilled(cell, {cell.x + cellW, cell.y + rowH}, accent, 4);
-            else if (hovered) dl->AddRectFilled(cell, {cell.x + cellW, cell.y + rowH}, ImGui::GetColorU32(ImGuiCol_HeaderHovered), 4);
-            dl->AddRectFilled({i0.x + 1, i0.y + 2}, {i1.x + 1, i1.y + 2}, IM_COL32(0, 0, 0, 70));
+            if (gaps) {
+                if (p == cur) dl->AddRectFilled(cell, {cell.x + cellW, cell.y + rowH}, accent, 4);
+                else if (hovered) dl->AddRectFilled(cell, {cell.x + cellW, cell.y + rowH}, ImGui::GetColorU32(ImGuiCol_HeaderHovered), 4);
+                dl->AddRectFilled({i0.x + 1, i0.y + 2}, {i1.x + 1, i1.y + 2}, IM_COL32(0, 0, 0, 70));
+            }
             dl->AddRectFilled(i0, i1, IM_COL32_WHITE);
             int tw = 0, th = 0;
             if (ImTextureID t = v.pageTexture(p, pixelWidth, tw, th)) dl->AddImage(t, i0, i1);
@@ -261,9 +270,18 @@ void ThumbnailPanel::draw(Viewer& v)
                 double k2 = imgW / s.w;
                 dl->AddRect({i0.x + static_cast<float>(vis.x0 * k2), i0.y + static_cast<float>(vis.y0 * k2)}, {i0.x + static_cast<float>(vis.x1 * k2), i0.y + static_cast<float>(vis.y1 * k2)}, IM_COL32(230, 200, 0, 255), 0.0f, 0, 2.0f);
             }
-            std::string label = v.pageLabel(p);
-            ImVec2 ls = ImGui::CalcTextSize(label.c_str());
-            dl->AddText({cell.x + (cellW - ls.x) / 2, cell.y + rowH - labelH + st.ItemSpacing.y / 2}, ImGui::GetColorU32(ImGuiCol_Text), label.c_str());
+            if (!gaps && (p == cur || hovered)) {
+                ImU32 color = p == cur ? accent : ImGui::GetColorU32(ImGuiCol_HeaderHovered);
+                float inset = std::min({sc, imgW / 2, h / 2});
+                dl->AddRect({i0.x + inset, i0.y + inset}, {i1.x - inset, i1.y - inset}, color, 0, 0, 2 * inset);
+            }
+            if (showLabels) {
+                std::string label = v.pageLabel(p);
+                ImVec2 ls = ImGui::CalcTextSize(label.c_str());
+                dl->AddText({cell.x + (cellW - ls.x) / 2, cell.y + rowH - labelH + rowGap / 2}, ImGui::GetColorU32(ImGuiCol_Text), label.c_str());
+            } else if (hovered) {
+                ImGui::SetItemTooltip("%s", v.pageLabel(p).c_str());
+            }
 
             // a click goes to the page; a drag moves the view over it
             auto pagePoint = [&](double& px, double& py) {
@@ -281,7 +299,11 @@ void ThumbnailPanel::draw(Viewer& v)
                 v.centerOn(p, px, py);
             }
             if (ImGui::IsItemDeactivated() && mDragPage == p) {
-                if (!mDragged) v.goToPage(p);
+                if (!mDragged) {
+                    v.goToPage(p);
+                    // The click originated in this panel. Keep its scroll position.
+                    mLastCurrent = v.currentPage();
+                }
                 mDragPage = -1;
             }
             if (hovered && !ImGui::IsItemActive()) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
