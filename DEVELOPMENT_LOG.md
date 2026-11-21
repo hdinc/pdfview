@@ -318,3 +318,11 @@
 - Added regular expression search to the future improvements in `README.md`.
 - Built the Windows app in `build/find-icon-review`. All six CTest targets and the Windows integration
   check passed, including measuring the icon's center and clicking it to close the bar.
+
+## 2026-11-22 01:19 +03:00 — Add tree lines to Contents
+
+- Contents uses ImGui's native tree stack to draw branch lines for expanded entries. Long titles
+  end in an ellipsis before the page-number column. Hover shows the full title.
+- Used the main `build/` folder. All six CTest targets passed. A hidden Windows OpenGL check verified
+  branch lines when expanding, collapsing, and filtering nested entries. The layout is ready for
+  visual review.

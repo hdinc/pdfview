@@ -79,6 +79,7 @@ void OutlinePanel::draw(Viewer& v)
     auto onPath = [&](const OutlineItem* it) { return std::find(path.begin(), path.end(), it) != path.end() && it != current; };
 
     float labelW = ImGui::CalcTextSize("00000").x;
+    ImGui::PushStyleVar(ImGuiStyleVar_TreeLinesSize, std::max(1.0f, ImGui::GetStyle().TreeLinesSize));
     if (ImGui::BeginTable("##outline", 2, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersOuter, ImGui::GetContentRegionAvail())) {
         ImGui::TableSetupColumn("title", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn("page", ImGuiTableColumnFlags_WidthFixed, labelW);
@@ -88,8 +89,9 @@ void OutlinePanel::draw(Viewer& v)
                 if (filtering && !matches(it, mFilter)) continue;
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
-                ImGuiTreeNodeFlags f = ImGuiTreeNodeFlags_SpanAllColumns | ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_NoTreePushOnOpen;
-                if (it.children.empty()) f |= ImGuiTreeNodeFlags_Leaf;
+                ImGuiTreeNodeFlags f = ImGuiTreeNodeFlags_SpanAllColumns | ImGuiTreeNodeFlags_OpenOnArrow
+                    | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_DrawLinesToNodes;
+                if (it.children.empty()) f |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
                 if (&it == current) f |= ImGuiTreeNodeFlags_Selected;
                 if (filtering)
                     ImGui::SetNextItemOpen(true);
@@ -97,9 +99,19 @@ void OutlinePanel::draw(Viewer& v)
                     ImGui::SetNextItemOpen(true);
                 else
                     ImGui::SetNextItemOpen(false, ImGuiCond_Once);
-                bool open = ImGui::TreeNodeEx(&it, f, "%s", it.title.c_str());
+                ImVec2 origin = ImGui::GetCursorScreenPos();
+                float labelX = origin.x + ImGui::GetTreeNodeToLabelSpacing();
+                float right = origin.x + ImGui::GetContentRegionAvail().x;
+                ImVec2 titleSize = ImGui::CalcTextSize(it.title.c_str());
+                bool truncated = titleSize.x > right - labelX;
+                bool open = ImGui::TreeNodeEx(&it, f, "%s", truncated ? "" : it.title.c_str());
+                if (truncated && labelX < right && ImGui::IsItemVisible()) {
+                    const char* title = it.title.data();
+                    ImGui::RenderTextEllipsis(ImGui::GetWindowDrawList(), {labelX, origin.y}, {right, origin.y + titleSize.y},
+                                              right, title, title + it.title.size(), &titleSize);
+                }
                 if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen() && it.dest.valid()) v.goTo(it.dest);
-                if (ImGui::IsItemHovered() && ImGui::CalcTextSize(it.title.c_str()).x > ImGui::GetItemRectSize().x - ImGui::GetTreeNodeToLabelSpacing()) ImGui::SetTooltip("%s", it.title.c_str());
+                if (truncated) ImGui::SetItemTooltip("%s", it.title.c_str());
                 if (&it == current && scrollToCurrent && !ImGui::IsItemVisible()) ImGui::SetScrollHereY(0.3f);
                 ImGui::TableNextColumn();
                 if (it.dest.valid()) {
@@ -108,7 +120,6 @@ void OutlinePanel::draw(Viewer& v)
                     ImGui::TextUnformatted(l.c_str());
                 }
                 if (open && !it.children.empty()) {
-                    ImGui::TreePush(&it);
                     rows(it.children);
                     ImGui::TreePop();
                 }
@@ -117,6 +128,7 @@ void OutlinePanel::draw(Viewer& v)
         rows(items);
         ImGui::EndTable();
     }
+    ImGui::PopStyleVar();
     ImGui::PopID();
 }
 

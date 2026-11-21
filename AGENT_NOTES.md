@@ -59,13 +59,14 @@ does no file I/O of its own and launches no processes.
 - In non-continuous view, one wheel notch at the page edge turns the page.
 - The sidebar starts to the left of the document tabs and follows the active document.
 - The standalone Find bar sits below the document and has its own Options popup.
+- Contents uses native tree lines and truncates titles to fit the sidebar.
 - Annotations are out of scope; documents open read-only.
 
 ## Docs
 - [doc/plans/](doc/plans/): implementation plans, dated.
 
 ## Current work
-- Contents tree lines are next. The original batch is saved in the pdfview and Hd stashes named
+- The Contents context menu is next. The original batch is saved in the pdfview and Hd stashes named
   `Previous viewer changes for individual review`.
 
 [doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md).
