@@ -92,9 +92,11 @@ struct View {
 };
 
 // a rendered piece of a page. level picks the scale (see scaleOf), tx/ty the
-// tile; kPreview is the whole page small, shown while tiles load
+// tile. kPreview is the small whole-page preview; kWholePage in tx
+// requests a whole-page render at the level's scale.
 struct TileKey {
     static constexpr int kPreview = -1000;
+    static constexpr int kWholePage = -1;
 
     int page = 0;
     int level = kPreview;

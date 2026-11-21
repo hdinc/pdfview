@@ -53,15 +53,15 @@ does no file I/O of its own and launches no processes.
 - The app opens only http/https/mailto links, after asking; other links can only be copied.
 - A file opened for the first time gets the viewer's default view; known files get their saved one.
 - Resizing the thumbnail sidebar anchors the top edge of the first visible thumbnail.
+- Thumbnails request a whole-page render when the standard preview is smaller than their display size.
 - Annotations are out of scope; documents open read-only.
 
 ## Docs
 - [doc/plans/](doc/plans/): implementation plans, dated.
 
 ## Current work
-- The remaining viewer changes are queued for individual review, starting with thumbnail sharpness.
-  The original batch is saved in the pdfview and Hd stashes named `Previous viewer changes for
-  individual review`.
+- Thumbnail display options and selection behavior are next. The original batch is saved in the
+  pdfview and Hd stashes named `Previous viewer changes for individual review`.
 
 [doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md).
 - All phases are written and tested on Windows, including after merging upstream Hd's themes and fonts.

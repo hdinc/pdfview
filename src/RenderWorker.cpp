@@ -111,6 +111,7 @@ bool RenderWorker::render(const TileKey& k, Bitmap& out, std::string& err)
         return false;
     }
     if (k.level == TileKey::kPreview) return mDoc->render(k.page, previewScale(mDoc->pageSize(k.page)), out, err);
+    if (k.tx == TileKey::kWholePage) return mDoc->render(k.page, scaleOf(k.level), out, err);
     return mDoc->render(k.page, scaleOf(k.level), k.tx * mTileSize, k.ty * mTileSize, mTileSize, mTileSize, out, err);
 }
 

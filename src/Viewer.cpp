@@ -26,6 +26,7 @@ static double uiScale()
 static constexpr double kFlipPush = 3; // wheel notches against a row's end to flip
 static constexpr size_t kInfoCache = 200; // pages of links and text kept
 static constexpr int kMaxPanelPreviews = 96;
+static constexpr double kMaxThumbnailSide = 2048;
 
 Viewer::Viewer()
     : Viewer(Options{})
@@ -81,6 +82,7 @@ void Viewer::releaseTextures()
     mPending.clear();
     mBytes = 0;
     mLastWanted.clear();
+    mThumbnailRequests.clear();
     if (mWorker) mWorker->want({});
 }
 
@@ -93,6 +95,7 @@ void Viewer::close()
     mPending.clear();
     mBytes = 0;
     mLastWanted.clear();
+    mThumbnailRequests.clear();
     mLaidOut = false;
     mLayout = {};
     mView = {};
@@ -797,9 +800,42 @@ ImTextureID Viewer::previewTexture(int page, int& w, int& h)
     auto it = mTiles.find({page, TileKey::kPreview, 0, 0});
     if (it == mTiles.end() || !it->second.id) return 0;
     it->second.used = mFrame;
+    it->second.panelFrame = ImGui::GetFrameCount();
     w = it->second.w;
     h = it->second.h;
     return static_cast<ImTextureID>(it->second.id);
+}
+
+ImTextureID Viewer::pageTexture(int page, double pixelWidth, int& w, int& h)
+{
+    if (!mLaidOut || page < 0 || page >= pageCount()) return 0;
+    PageSize size = pageSize(page);
+    double scale = pixelWidth / size.w;
+    if (!std::isfinite(scale) || scale <= previewScale(size))
+        return previewTexture(page, w, h);
+
+    double limit = kMaxThumbnailSide / std::max(size.w, size.h);
+    int level = levelFor(std::min(scale, limit));
+    if (scaleOf(level) > limit) --level;
+    TileKey key{page, level, TileKey::kWholePage, 0};
+    Tex* best = nullptr;
+    int bestLevel = TileKey::kPreview;
+    for (auto it = mTiles.lower_bound({page, TileKey::kPreview, 0, 0});
+         it != mTiles.end() && it->first.page == page; ++it) {
+        if (it->first.tx != TileKey::kWholePage || !it->second.id) continue;
+        best = &it->second;
+        bestLevel = it->first.level;
+        if (bestLevel >= level) break;
+    }
+    if (bestLevel < level && !mTiles.contains(key)
+        && std::find(mThumbnailRequests.begin(), mThumbnailRequests.end(), key) == mThumbnailRequests.end())
+        mThumbnailRequests.push_back(key);
+    if (!best) return previewTexture(page, w, h);
+    best->used = mFrame;
+    best->panelFrame = ImGui::GetFrameCount();
+    w = best->w;
+    h = best->h;
+    return static_cast<ImTextureID>(best->id);
 }
 
 // --- tiles
@@ -877,6 +913,9 @@ void Viewer::requestTiles()
     if (needTiles)
         for (const auto& k : visibleTiles(mLayout, mView, mLevel, mOpt.tileSize))
             add(k);
+    for (const auto& k : mThumbnailRequests)
+        add(k);
+    mThumbnailRequests.clear();
     // a panel's previews
     auto [pa, pb] = mPreviews;
     if (pa <= pb) {
@@ -902,7 +941,7 @@ void Viewer::requestTiles()
     // mark what is on screen as used, for eviction
     for (int i = a; i <= b; i++)
         for (auto it = mTiles.lower_bound({i, TileKey::kPreview - 1, 0, 0}); it != mTiles.end() && it->first.page == i; ++it)
-            it->second.used = mFrame;
+            if (it->first.tx != TileKey::kWholePage) it->second.used = mFrame;
     if (want != mLastWanted) {
         mLastWanted = want;
         mWorker->want(std::move(want));
@@ -913,8 +952,9 @@ void Viewer::evict()
 {
     if (mBytes <= mOpt.textureBudget) return;
     std::vector<std::pair<uint64_t, TileKey>> order;
+    int panelFrame = ImGui::GetFrameCount();
     for (const auto& [k, t] : mTiles)
-        if (t.used < mFrame) order.push_back({t.used, k});
+        if (t.used < mFrame && t.panelFrame != panelFrame) order.push_back({t.used, k});
     std::sort(order.begin(), order.end());
     for (const auto& [used, k] : order) {
         if (mBytes <= mOpt.textureBudget * 3 / 4) break;
@@ -1125,7 +1165,7 @@ void Viewer::drawPages(ImDrawList* dl, ImVec2 origin, ImVec2 size)
             for (auto it = it0; it != mTiles.end() && it->first.page == i; ++it) {
                 const TileKey& k = it->first;
                 const Tex& t = it->second;
-                if (!t.id) continue;
+                if (!t.id || k.tx == TileKey::kWholePage) continue;
                 bool preview = k.level == TileKey::kPreview;
                 if (pass != (preview ? 0 : k.level == mLevel ? 2 : 1)) continue;
                 double s = preview ? previewScale(p) : scaleOf(k.level);

@@ -211,6 +211,18 @@
   testing through same-column resizes and a 2→3→4→1→2 column sequence. It also covered clamping near
   the bottom and following viewer navigation. The interactive splitter drag awaits user review.
 
+## 2026-11-22 00:28 +03:00 — Render sharper thumbnails at their displayed size
+
+- Recovered the stashed whole-page render approach. The sidebar requests a sharper texture when the
+  320-pixel preview would be enlarged at the framebuffer's resolution. Small thumbnails reuse the
+  preview, and larger thumbnails use a cached lower-resolution image while their render is pending.
+  Whole-page thumbnail renders are capped at 2048 pixels on the long side and stay out of the main
+  document's draw list. The cache protects textures used by the sidebar for the current ImGui frame.
+- The Windows build in `build/thumb-sharpness-review` passed all six CTest targets including a worker
+  check for rendering a rotated thumbnail in full. Headless checks confirmed the sidebar selected a
+  sharper texture at 2× scale and verified fallback, cache reuse under a reduced texture budget, the
+  size cap, and the previous resize behavior. Visual review of the Windows build is pending.
+
 ## 2026-11-22 00:10 +03:00 — Set thumbnail width independently of sidebar width
 
 ### Changes made

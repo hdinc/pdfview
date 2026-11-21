@@ -230,6 +230,8 @@ void ThumbnailPanel::draw(Viewer& v)
     base.y -= sy;
     ImDrawList* dl = ImGui::GetWindowDrawList();
     ImU32 accent = ImGui::GetColorU32(ImGuiCol_HeaderActive);
+    float framebufferScale = std::max(io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
+    double pixelWidth = imgW * (framebufferScale > 0 ? framebufferScale : 1);
     size_t r0 = static_cast<size_t>(std::upper_bound(rowY.begin(), rowY.end(), clip.Min.y - base.y) - rowY.begin());
     r0 = r0 > 0 ? r0 - 1 : 0;
     for (size_t r = r0; r < rows && rowY[r] < clip.Max.y - base.y; r++) {
@@ -253,7 +255,7 @@ void ThumbnailPanel::draw(Viewer& v)
             dl->AddRectFilled({i0.x + 1, i0.y + 2}, {i1.x + 1, i1.y + 2}, IM_COL32(0, 0, 0, 70));
             dl->AddRectFilled(i0, i1, IM_COL32_WHITE);
             int tw = 0, th = 0;
-            if (ImTextureID t = v.previewTexture(p, tw, th)) dl->AddImage(t, i0, i1);
+            if (ImTextureID t = v.pageTexture(p, pixelWidth, tw, th)) dl->AddImage(t, i0, i1);
             Rect vis;
             if (v.visibleRect(p, vis)) {
                 double k2 = imgW / s.w;

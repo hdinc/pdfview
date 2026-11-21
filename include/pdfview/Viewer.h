@@ -152,6 +152,9 @@ public:
     // the page's small preview, asking for it (0 until it is ready); call
     // each frame while it is shown
     ImTextureID previewTexture(int page, int& w, int& h);
+    // call before draw() to request a whole-page thumbnail in framebuffer
+    // pixels. Returns a cached thumbnail or preview while the render is pending.
+    ImTextureID pageTexture(int page, double pixelWidth, int& w, int& h);
     // the part of the page in view, in page points; false when none
     bool visibleRect(int page, Rect& r) const;
     // moves the view so page point (px, py) is at its centre
@@ -180,6 +183,7 @@ private:
         unsigned id = 0; // 0: rendering failed, don't ask again
         int w = 0, h = 0;
         uint64_t used = 0; // frame
+        int panelFrame = -1; // ImGui frame, independent of when Viewer::draw runs
     };
     struct Caret {
         int page = -1;
@@ -243,6 +247,7 @@ private:
     std::vector<TileKey> mLastWanted;
     std::pair<int, int> mPreviews{0, -1}; // asked for by a panel this frame
     std::pair<int, int> mLastPreviews{0, -1};
+    std::vector<TileKey> mThumbnailRequests;
     // tiles follow the zoom once it has stopped changing for a moment
     int mLevel = 0;
     std::chrono::steady_clock::time_point mZoomChanged;

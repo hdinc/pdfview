@@ -298,7 +298,8 @@ TEST_CASE("RenderWorker renders what is wanted, in order")
     CHECK(w.pageSizes().size() == 3);
     CHECK(w.title() == "Mixed");
 
-    std::vector<TileKey> keys{{0, TileKey::kPreview, 0, 0}, {0, 0, 1, 1}, {2, 8, 0, 0}, {9, 0, 0, 0}};
+    std::vector<TileKey> keys{{0, TileKey::kPreview, 0, 0}, {0, 0, 1, 1}, {2, 8, 0, 0},
+                              {1, 8, TileKey::kWholePage, 0}, {9, 0, 0, 0}};
     w.want(keys);
     std::vector<RenderWorker::Result> got;
     REQUIRE(waitFor([&] {
@@ -314,10 +315,14 @@ TEST_CASE("RenderWorker renders what is wanted, in order")
     CHECK(got[1].bitmap.w == 44);
     CHECK(got[1].bitmap.h == 144);
     CHECK(got[2].bitmap.w == 256);
+    // The rotated page is 400 x 300 points; the thumbnail covers it at 2x.
+    CHECK(got[3].bitmap.w == 800);
+    CHECK(got[3].bitmap.h == 600);
+    CHECK(got[3].error.empty());
     // page 10 doesn't exist
-    CHECK(got[3].bitmap.bgra.empty());
-    CHECK_FALSE(got[3].error.empty());
-    CHECK(wakes >= 5);
+    CHECK(got[4].bitmap.bgra.empty());
+    CHECK_FALSE(got[4].error.empty());
+    CHECK(wakes >= 6);
     CHECK_FALSE(w.busy());
 
     RenderWorker bad(dir + "/missing.pdf", 256);
