@@ -1,7 +1,7 @@
 # Plan: pdfview from a page renderer to a full viewer
 
-**Status:** in progress (2026-11-21). Everything here is written and tested by hand on Windows (see
-"Steps"). Nothing is committed yet.
+**Status:** in progress (2026-11-21). Everything here is written, tested by hand on Windows (see
+"Steps"), and on `main`. The unticked steps remain.
 
 ## Goal
 Make pdfview a viewer comparable to Okular:
@@ -17,7 +17,7 @@ standalone program goes in pdfview-app. Done when each feature works in the app 
 - poppler-cpp (26.10) has no TOC destinations, no link API and no text layout, so the backend had to
   change.
 - `deps/Hd` (window, GL, ImGui wrapper) is shared with pdforg. DPI, fonts, themes and the OS helpers
-  went there, on branch `ui-scale-fonts-themes` of the Hd submodule.
+  went there (Hd `master`).
 
 ## Approach
 - **Backend:** poppler-glib, rendering through cairo. MuPDF was rejected (AGPL, packaging); poppler's

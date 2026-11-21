@@ -20,7 +20,6 @@ does no file I/O of its own and launches no processes.
 - `deps/Hd`: submodule (its own repo, with its own AGENT_NOTES.md).
   - Window, ImGui setup, and the look: scale, fonts, Font Awesome icons, themes with an editor.
   - `Hd::Platform`: native file dialog, open URI, dark mode, the system's UI font.
-  - Work is on its branch `ui-scale-fonts-themes`, on top of origin/master.
   - `C:\dev\github\Hd` is an older, separate checkout: don't edit that one.
 - `tests/`: doctest. `fixtures.h` writes the test PDFs (text, links, outline, labels); no PDFs are stored.
 - `build/` is output. `doc/plans/` holds plans.
@@ -61,8 +60,7 @@ does no file I/O of its own and launches no processes.
 ## Current work
 [doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md).
 - All phases are written and tested on Windows, including after merging upstream Hd's themes and fonts.
-- Nothing is committed: pdfview on `main`; Hd on branch `ui-scale-fonts-themes`. The submodule now
-  points at origin/master a282281, plus uncommitted changes.
+- Committed and pushed to pdfview `main` (b5dbca4) and Hd `master` (41b19a8).
 - Next: the unticked steps. Test on Linux; try Ctrl+wheel, auto-reload, a locked PDF and an external
   link by hand; build pdforg against it.
 
