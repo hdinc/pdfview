@@ -84,6 +84,111 @@ TEST_CASE("Document: sizes with /Rotate, metadata, region rendering")
     CHECK_FALSE(doc->render(0, 1.0, 400, 0, 10, 10, bm, err)); // outside
 }
 
+namespace {
+
+// three white pages: text and links on the first, a turned page with text
+// and a link, an outline, labels i, ii, 1
+std::string structuredPdf(const std::string& dir)
+{
+    test::DocSpec d;
+    d.title = "Structured";
+    test::PageSpec p;
+    p.r = p.g = p.b = 1;
+    p.text = {{72, 700, 12, "Hello world"}, {72, 680, 12, "second line world"}};
+    p.links = {{72, 600, 200, 620, 1, 500, ""}, {72, 560, 200, 580, -1, -1, "https://example.com/"}};
+    test::PageSpec turned = p;
+    turned.rotate = 90;
+    turned.text = {{72, 700, 12, "Turned"}};
+    turned.links = {{72, 600, 200, 620, 0, -1, ""}};
+    test::PageSpec plain;
+    plain.r = plain.g = plain.b = 1;
+    plain.text = {{100, 100, 20, "WORLD"}};
+    d.pages = {p, turned, plain};
+    d.outline = {{"Chapter 1", 0, 700, true, {{"Section 1.1", 1, -1, true, {}}}}, {"Chapter 2", 2, 300, false, {{"Hidden", 2, -1, true, {}}}}};
+    d.pageLabels = "0 << /S /r >> 2 << /S /D >>";
+    std::string path = dir + "/structured.pdf";
+    test::writePdf(path, d);
+    return path;
+}
+
+}
+
+TEST_CASE("Document: labels, outline, links, text, find")
+{
+    std::string dir = test::scratch("pdfview-structure");
+    std::string err;
+    auto doc = Document::open(structuredPdf(dir), err);
+    REQUIRE_MESSAGE(doc, err);
+    REQUIRE(doc->pages() == 3);
+    CHECK(doc->pageLabel(0) == "i");
+    CHECK(doc->pageLabel(1) == "ii");
+    CHECK(doc->pageLabel(2) == "1");
+
+    auto outline = doc->outline();
+    REQUIRE(outline.size() == 2);
+    CHECK(outline[0].title == "Chapter 1");
+    CHECK(outline[0].dest.page == 0);
+    CHECK(outline[0].dest.y == doctest::Approx(92));
+    CHECK(outline[0].open);
+    REQUIRE(outline[0].children.size() == 1);
+    CHECK(outline[0].children[0].title == "Section 1.1");
+    CHECK(outline[0].children[0].dest.page == 1);
+    CHECK(outline[0].children[0].dest.y == -1);
+    CHECK(outline[1].dest.page == 2);
+    CHECK(outline[1].dest.y == doctest::Approx(492));
+    CHECK_FALSE(outline[1].open);
+    CHECK(outline[1].children.size() == 1);
+
+    auto links = doc->links(0);
+    REQUIRE(links.size() == 2);
+    CHECK(links[0].kind == Link::Kind::Goto);
+    CHECK(links[0].dest.page == 1);
+    // /XYZ on a turned page: its top
+    CHECK(links[0].dest.y == -1);
+    CHECK(links[0].rect.x0 == doctest::Approx(72));
+    CHECK(links[0].rect.y0 == doctest::Approx(172));
+    CHECK(links[0].rect.x1 == doctest::Approx(200));
+    CHECK(links[0].rect.y1 == doctest::Approx(192));
+    CHECK(links[1].kind == Link::Kind::Uri);
+    CHECK(links[1].uri == "https://example.com/");
+
+    auto text = doc->text(0);
+    std::string all = toUtf8(text.text);
+    CHECK(all.find("Hello world") != std::string::npos);
+    CHECK(all.find("second line world") != std::string::npos);
+    REQUIRE(text.boxes.size() == text.text.size());
+    // "H": its baseline at y 92 from the top, starting at x 72
+    CHECK(text.boxes[0].x0 == doctest::Approx(72).epsilon(0.02));
+    CHECK(text.boxes[0].y0 < 92);
+    CHECK(text.boxes[0].y1 > 88);
+    CHECK(text.boxes[0].y1 < 96);
+
+    // turned a quarter clockwise: PDF (x, y) shows at (y, x)
+    auto turned = doc->text(1);
+    REQUIRE_FALSE(turned.boxes.empty());
+    CHECK(turned.boxes[0].x0 > 690);
+    CHECK(turned.boxes[0].x0 < 705);
+    CHECK(turned.boxes[0].y0 == doctest::Approx(72).epsilon(0.02));
+    auto tl = doc->links(1);
+    REQUIRE(tl.size() == 1);
+    MESSAGE("turned link ", tl[0].rect.x0, " ", tl[0].rect.y0, " ", tl[0].rect.x1, " ", tl[0].rect.y1);
+    CHECK(tl[0].rect.x0 == doctest::Approx(600));
+    CHECK(tl[0].rect.x1 == doctest::Approx(620));
+    CHECK(tl[0].rect.y0 == doctest::Approx(72));
+    CHECK(tl[0].rect.y1 == doctest::Approx(200));
+
+    auto found = doc->find(0, "world");
+    REQUIRE(found.size() == 2);
+    CHECK(found[0].y0 < found[1].y0); // page order
+    CHECK(found[0].x0 > 100);
+    CHECK(found[0].y0 < 92);
+    CHECK(found[0].y1 > 88);
+    CHECK(doc->find(2, "world").size() == 1);
+    CHECK(doc->find(2, "world", FindCaseSensitive).empty());
+    CHECK(doc->find(0, "wor", FindWholeWords).empty());
+    CHECK(doc->find(1, "turned").size() == 1);
+}
+
 TEST_CASE("Document: no title or author")
 {
     std::string dir = test::scratch("pdfview-untitled");
@@ -218,4 +323,140 @@ TEST_CASE("RenderWorker renders what is wanted, in order")
     RenderWorker bad(dir + "/missing.pdf", 256);
     REQUIRE(waitFor([&] { return bad.state() != RenderWorker::State::Loading; }));
     CHECK(bad.state() == RenderWorker::State::Failed);
+}
+
+TEST_CASE("RenderWorker: page info, outline, labels and find")
+{
+    std::string dir = test::scratch("pdfview-worker-info");
+    RenderWorker w(structuredPdf(dir), 256);
+    auto waitFor = [&](auto pred) {
+        for (int i = 0; i < 500 && !pred(); i++)
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        return pred();
+    };
+    // a search asked for while loading starts once loaded
+    unsigned early = w.find("world", FindDefault, 0);
+    REQUIRE(waitFor([&] { return w.state() != RenderWorker::State::Loading; }));
+    REQUIRE(w.state() == RenderWorker::State::Ready);
+    CHECK(w.pageLabels() == std::vector<std::string>{"i", "ii", "1"});
+    REQUIRE(w.outline().size() == 2);
+
+    std::vector<RenderWorker::FindResult> found;
+    REQUIRE(waitFor([&] {
+        for (auto& r : w.takeFind())
+            found.push_back(std::move(r));
+        return found.size() == 3;
+    }));
+    size_t matches = 0;
+    for (const auto& r : found) {
+        CHECK(r.search == early);
+        matches += r.matches.size();
+    }
+    CHECK(matches == 3);
+
+    // a new search from page 2 goes round: 2, 0, 1
+    unsigned s = w.find("Turned", FindDefault, 2);
+    found.clear();
+    REQUIRE(waitFor([&] {
+        for (auto& r : w.takeFind())
+            found.push_back(std::move(r));
+        return found.size() == 3;
+    }));
+    CHECK(found[0].search == s);
+    CHECK(found[0].page == 2);
+    CHECK(found[1].page == 0);
+    CHECK(found[2].matches.size() == 1);
+    CHECK(waitFor([&] { return !w.busy(); }));
+
+    w.wantInfo({2, 0});
+    std::vector<RenderWorker::PageInfo> info;
+    REQUIRE(waitFor([&] {
+        for (auto& r : w.takeInfo())
+            info.push_back(std::move(r));
+        return info.size() == 2;
+    }));
+    CHECK(info[0].page == 2);
+    CHECK(info[1].page == 0);
+    CHECK(info[1].links.size() == 2);
+    CHECK(toUtf8(info[0].text.text).find("WORLD") != std::string::npos);
+    CHECK(waitFor([&] { return !w.busy(); }));
+}
+
+TEST_CASE("Layout: view modes")
+{
+    std::vector<PageSize> five(5, PageSize{100, 200});
+    five[3] = {50, 100};
+    Layout l;
+    l.gap = 10;
+
+    // facing: pairs meeting in the middle
+    l.build(five, {2, false, true});
+    CHECK(l.rows() == 3);
+    CHECK(l.width == doctest::Approx(230));
+    CHECK(l.left(0) == doctest::Approx(10));
+    CHECK(l.left(1) == doctest::Approx(120));
+    CHECK(l.left(2) == doctest::Approx(10));
+    CHECK(l.left(3) == doctest::Approx(120));
+    CHECK(l.top[3] == doctest::Approx(l.rowTop[1] + 50)); // centred in its row
+    CHECK(l.left(4) == doctest::Approx(10));
+    CHECK(l.rowOf[4] == 2);
+    CHECK(l.range(0, 50) == std::pair{0, 1});
+    CHECK(l.range(0, 300) == std::pair{0, 3});
+    CHECK(l.pageAt(150, 100) == 1);
+    CHECK(l.pageAt(5, 100) == 0);
+    CHECK(l.pageAt(150, 450) == 4); // alone in its row
+    CHECK(l.height == doctest::Approx(10 + 3 * 210));
+
+    // the first page alone, centred
+    l.build(five, {2, true, true});
+    CHECK(l.rows() == 3);
+    CHECK(l.left(0) == doctest::Approx(65));
+    CHECK(l.rowFirst == std::vector<int>{0, 1, 3});
+    CHECK(l.left(1) == doctest::Approx(10));
+    CHECK(l.left(3) == doctest::Approx(10 + 100 - 50)); // left of the pair: against the middle
+
+    // overview: 3 columns, centred in each
+    l.build(five, {3, false, true});
+    CHECK(l.rows() == 2);
+    CHECK(l.left(2) == doctest::Approx(230));
+    CHECK(l.left(3) == doctest::Approx(10 + 25));
+    CHECK(l.rowWidth(0) == doctest::Approx(l.width));
+
+    // fits: the rows' width
+    View v;
+    v.w = 460;
+    v.h = 1000;
+    CHECK(v.fitWidth(l, 0) == doctest::Approx(460 / l.width));
+
+    // not continuous: one row at a time, flipping between them
+    l.build(five, {1, false, false});
+    v.w = 200;
+    v.h = 100;
+    v.zoom = 1;
+    v.goToPage(1, l);
+    CHECK(v.row == 1);
+    CHECK(v.currentPage(l) == 1);
+    v.y = 1e6;
+    v.clamp(l);
+    CHECK(v.y + v.h == doctest::Approx(l.rowTop[1] + 200 + 10)); // the row's bottom
+    CHECK(v.pages(l, 1000) == std::pair{1, 1});
+    REQUIRE(v.flip(1, l));
+    CHECK(v.row == 2);
+    CHECK(v.y == doctest::Approx(l.rowTop[2] - 10));
+    REQUIRE(v.flip(-1, l));
+    CHECK(v.row == 1);
+    CHECK(v.y + v.h == doctest::Approx(l.rowTop[1] + 200 + 10)); // back at its bottom
+    v.goToPage(0, l);
+    CHECK_FALSE(v.flip(-1, l));
+    // a row smaller than the view is centred in it
+    v.zoom = 0.25;
+    v.clamp(l);
+    CHECK(v.y + v.h / v.zoom / 2 == doctest::Approx(l.rowTop[0] + 100));
+    CHECK(v.pages(l, 1000) == std::pair{0, 0});
+
+    // goToPage with a position on the page
+    l.build(five, {1, false, true});
+    v.zoom = 1;
+    v.goToPage(2, l, 50);
+    CHECK(v.y == doctest::Approx(l.top[2] + 50));
 }

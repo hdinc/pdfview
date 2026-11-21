@@ -25,9 +25,9 @@ if(NOT TARGET imgui OR NOT TARGET glad OR (PDFVIEW_BUILD_APP AND NOT TARGET Hd))
     add_subdirectory(deps/Hd)
 endif()
 
-if(NOT TARGET PkgConfig::POPPLER)
+if(NOT TARGET PkgConfig::PDFVIEW_POPPLER)
     find_package(PkgConfig REQUIRED)
-    pkg_check_modules(POPPLER REQUIRED IMPORTED_TARGET poppler-cpp)
+    pkg_check_modules(PDFVIEW_POPPLER REQUIRED IMPORTED_TARGET poppler-glib cairo)
 endif()
 find_package(Threads REQUIRED)
 
@@ -46,15 +46,23 @@ add_library(pdfview_core STATIC
     src/RenderWorker.cpp
 )
 target_include_directories(pdfview_core PUBLIC include)
-target_link_libraries(pdfview_core PUBLIC Threads::Threads PRIVATE PkgConfig::POPPLER)
+target_link_libraries(pdfview_core PUBLIC Threads::Threads PRIVATE PkgConfig::PDFVIEW_POPPLER)
 pdfview_warnings(pdfview_core)
 
-add_library(pdfview STATIC src/Viewer.cpp)
+add_library(pdfview STATIC
+    src/Actions.cpp
+    src/Panels.cpp
+    src/Viewer.cpp
+)
 target_link_libraries(pdfview PUBLIC pdfview_core imgui PRIVATE glad)
 pdfview_warnings(pdfview)
 
 if(PDFVIEW_BUILD_APP)
-    add_executable(pdfview-app app/main.cpp)
+    add_executable(pdfview-app
+        app/App.cpp
+        app/Settings.cpp
+        app/main.cpp
+    )
     target_link_libraries(pdfview-app PRIVATE pdfview Hd)
     pdfview_warnings(pdfview-app)
 endif()

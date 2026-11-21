@@ -11,7 +11,7 @@ poppler, and `pdfview-app`, a small standalone viewer built on it.
 
 ## Build
 
-Needs CMake 3.29, a C++20 compiler and poppler-cpp (`pkg-config poppler-cpp`).
+Needs CMake 3.29, a C++20 compiler and poppler-glib and cairo (`pkg-config poppler-glib cairo`).
 
 ```
 git clone --recursive git@github.com:hdinc/pdfview.git

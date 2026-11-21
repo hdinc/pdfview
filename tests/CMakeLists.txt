@@ -1,9 +1,10 @@
 add_executable(pdfview_tests
     main.cpp
     test_pdfview.cpp
+    test_actions.cpp
 )
 target_include_directories(pdfview_tests PRIVATE ${PROJECT_SOURCE_DIR}/deps/doctest)
-target_link_libraries(pdfview_tests PRIVATE pdfview_core PkgConfig::POPPLER)
+target_link_libraries(pdfview_tests PRIVATE pdfview PkgConfig::PDFVIEW_POPPLER)
 pdfview_warnings(pdfview_tests)
 
 add_test(NAME pdfview_tests COMMAND pdfview_tests)

@@ -8,25 +8,55 @@
 
 namespace pdfview {
 
-// pages stacked top to bottom, centred on the widest one; all in points
+// how pages are arranged: in rows of `columns` pages (1: single, 2: facing,
+// more: overview); firstAlone puts the first page on a row of its own,
+// centred (a book's cover); continuous shows all rows, otherwise one row at
+// a time
+struct ViewMode {
+    int columns = 1;
+    bool firstAlone = false;
+    bool continuous = true;
+
+    bool operator==(const ViewMode&) const = default;
+};
+
+// pages placed in rows, top to bottom; all in points. Each column is as
+// wide as the widest page. Facing pages meet at the middle; other pages
+// are centred in their column and their row.
 struct Layout {
     std::vector<PageSize> pages;
     double gap = 10; // around and between pages
+    ViewMode mode;
+    std::vector<double> x; // of each page's left edge
     std::vector<double> top; // of each page
+    std::vector<int> rowOf; // each page's row
+    std::vector<int> rowFirst; // each row's first page
+    std::vector<double> rowTop; // each row's top, its tallest page's
+    std::vector<double> rowH;
     double width = 0; // of the whole document, gaps included
     double height = 0;
 
-    void build(std::vector<PageSize> sizes);
-    double left(int i) const { return (width - pages[static_cast<size_t>(i)].w) / 2; }
+    void build(std::vector<PageSize> sizes, ViewMode m = {});
+    double left(int i) const { return x[static_cast<size_t>(i)]; }
     int count() const { return static_cast<int>(pages.size()); }
-    // the page at y, or the nearest one
-    int pageAt(double y) const;
-    // first and last page touching [y0, y1]; first > last when none
+    int rows() const { return static_cast<int>(rowFirst.size()); }
+    int rowLast(int r) const { return r + 1 < rows() ? rowFirst[static_cast<size_t>(r + 1)] - 1 : count() - 1; }
+    // the row at y, or the nearest one
+    int rowAt(double y) const;
+    // the page at (px, py), or the nearest one in the row at py
+    int pageAt(double px, double py) const;
+    // the page at y in a single column, or the first of the row at y
+    int pageAt(double y) const { return rows() ? rowFirst[static_cast<size_t>(rowAt(y))] : 0; }
+    // first and last page in the rows touching [y0, y1]; first > last when
+    // none
     std::pair<int, int> range(double y0, double y1) const;
+    // the width of row r with its gaps
+    double rowWidth(int r) const;
 };
 
 // what the viewer shows: zoom is screen pixels per point, x and y the
-// document point at the view's top left corner
+// document point at the view's top left corner. Not continuous, the view
+// stays on row `row`.
 struct View {
     static constexpr double kMinZoom = 0.05;
     static constexpr double kMaxZoom = 16;
@@ -36,17 +66,29 @@ struct View {
     double y = 0;
     double w = 0; // view size in screen pixels
     double h = 0;
+    int row = 0;
 
-    // keeps the view on the document: centred horizontally when it is
-    // narrower than the view
+    // keeps the view on the document (on its row when not continuous):
+    // centred when it is smaller than the view
     void clamp(const Layout& l);
     // zooms keeping the document point under screen point (sx, sy) in place
     void zoomAt(double zoom, double sx, double sy, const Layout& l);
+    // the zoom that fits the page's width (single column) or the rows'
     double fitWidth(const Layout& l, int page) const;
+    // the zoom that shows the whole page (single column) or its row
     double fitPage(const Layout& l, int page) const;
     // the page at the view's centre
-    int currentPage(const Layout& l) const { return l.pageAt(y + h / zoom / 2); }
-    void goToPage(int page, const Layout& l);
+    int currentPage(const Layout& l) const;
+    // shows y points below the page's top (its top when < 0) at the top of
+    // the view
+    void goToPage(int page, const Layout& l, double yInPage = -1);
+    // not continuous: moves to the next (dir 1) or previous row, showing
+    // its top or its bottom; false at either end
+    bool flip(int dir, const Layout& l);
+    // the band of y the view may show: the document, or the row
+    std::pair<double, double> band(const Layout& l) const;
+    // the pages shown, margin screen pixels around the view included
+    std::pair<int, int> pages(const Layout& l, double margin = 0) const;
 };
 
 // a rendered piece of a page. level picks the scale (see scaleOf), tx/ty the
