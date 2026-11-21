@@ -344,3 +344,24 @@
 - All six CTest targets passed. The Windows integration check verified the four commands, that the
   highlight stayed visible while the pointer moved into the menu, and that it cleared when the menu
   closed. Rebuilt `build/bin/pdfview-app.exe` while leaving the older instance running.
+
+## 2026-11-22 01:51 +03:00 — Stabilize the thumbnail scrollbar during sidebar resize
+
+- The scrollbar changed the width that determined the thumbnail layout, producing a feedback loop.
+  The panel now computes the layout and content height before opening its ImGui child. It uses the
+  gutter-width layout when that width alone lets all thumbnails fit, and shows the scrollbar when
+  the narrower layout still overflows.
+- Rebuilt in the main `build/` folder. In a two-page fixture, the previous build alternated the
+  scrollbar at 14 widths. The new build showed no alternating widths from 225 to 350 pixels,
+  rendered both thumbnails on transition frames, and scrolled when the bar was visible. A Windows
+  OpenGL splitter test confirmed that the document stayed rendered when the bar appeared and
+  disappeared. All six CTest targets and the thumbnail anchoring and options checks passed.
+
+## 2026-11-22 01:56 +03:00 — Keep thumbnail width stable when the scrollbar changes
+
+- Reserve the scrollbar gutter even when the bar is hidden. Thumbnail width follows the sidebar
+  width continuously within the same column count, and the scrollbar appears when rows overflow.
+- Rebuilt in the main `build/` folder and passed all six CTest targets. The previous fix shrank a
+  thumbnail by 13 pixels when the sidebar grew one pixel. The new layout removed that jump and
+  kept thumbnail width identical when changing only the panel height to show or hide the scrollbar.
+  The scrollbar sweep, resize anchor, and Windows splitter checks passed.

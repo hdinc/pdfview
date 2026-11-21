@@ -54,6 +54,7 @@ does no file I/O of its own and launches no processes.
 - The app opens only http/https/mailto links, after asking; other links can only be copied.
 - A file opened for the first time gets the viewer's default view; known files get their saved one.
 - Resizing the thumbnail sidebar anchors the top edge of the first visible thumbnail.
+- The thumbnail grid reserves a fixed scrollbar gutter to avoid jumps in thumbnail width.
 - Thumbnails request a whole-page render when the standard preview is smaller than their display size.
 - The thumbnail context menu controls page labels and gaps. Clicking a thumbnail keeps sidebar scroll.
 - In non-continuous view, one wheel notch at the page edge turns the page.
@@ -67,8 +68,8 @@ does no file I/O of its own and launches no processes.
 - [doc/plans/](doc/plans/): implementation plans, dated.
 
 ## Current work
-- The thumbnail scrollbar transition is under investigation. The original batch is saved in the
-  pdfview and Hd stashes named `Previous viewer changes for individual review`.
+- Middle-click autoscroll is next. The original batch is saved in the pdfview and Hd stashes named
+  `Previous viewer changes for individual review`.
 
 [doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md).
 - All phases are written and tested on Windows, including after merging upstream Hd's themes and fonts.

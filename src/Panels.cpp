@@ -190,16 +190,57 @@ void ThumbnailPanel::draw(Viewer& v)
     bool filtering = mFilter[0] && v.findText() == mFilter;
     if (filtering && v.matchCount() == 0) ImGui::TextDisabled(v.searching() ? "Searching..." : "No pages match.");
 
-    if (!ImGui::BeginChild("##thumbs", {0, 0}, ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollWithMouse)) {
+    ImGuiIO& io = ImGui::GetIO();
+    const ImGuiStyle& st = ImGui::GetStyle();
+    // sizes are at scale 1: they follow the UI's scale
+    float sc = st.FontScaleDpi > 0 ? st.FontScaleDpi : 1.0f;
+    std::vector<int> pages;
+    for (int p = 0; p < v.pageCount(); p++)
+        if (!filtering || v.pageHasMatches(p)) pages.push_back(p);
+
+    // Keep this frame's layout consistent when a menu item changes its settings.
+    bool spaced = gaps;
+    bool labeled = showLabels;
+    float gap = spaced ? st.ItemSpacing.x * 2 : 0;
+    float rowGap = spaced ? st.ItemSpacing.y : 0;
+    float px = size * sc; // the width on screen
+    float pad = spaced ? 6 * sc : 0;
+    float labelH = labeled ? ImGui::GetTextLineHeightWithSpacing() : 0;
+    ImVec2 avail = ImGui::GetContentRegionAvail();
+    // A bordered child uses the window padding. ImGui rounds its size to pixels.
+    ImVec2 padding = st.ChildBorderSize > 0 ? st.WindowPadding : ImVec2{};
+    float height = std::floor(std::max(IMGUI_WINDOW_HARD_MIN_SIZE, avail.y)) - 2 * padding.y;
+    // Keep the gutter width even when the scrollbar is hidden so the
+    // thumbnails don't jump in size as they start or stop overflowing.
+    float width = std::max(1.0f, std::floor(std::max(IMGUI_WINDOW_HARD_MIN_SIZE, avail.x))
+        - 2 * padding.x - st.ScrollbarSize);
+    int cols = std::max(1, static_cast<int>((width + gap) / (px + gap)));
+    float cellW = (width - gap * (cols - 1)) / cols;
+    float imgW = std::max(1.0f, cellW - 2 * pad);
+    float rowPadding = 2 * pad + labelH + rowGap;
+    auto imageHeight = [&](int page) {
+        PageSize s = v.pageSize(page);
+        return static_cast<float>(imgW * s.h / s.w);
+    };
+    size_t rows = (pages.size() + static_cast<size_t>(cols) - 1) / static_cast<size_t>(cols);
+    std::vector<float> rowY(rows + 1, 0);
+    for (size_t r = 0; r < rows; r++) {
+        float h = 0;
+        for (size_t k = r * cols; k < std::min(pages.size(), (r + 1) * cols); k++)
+            h = std::max(h, imageHeight(pages[k]));
+        rowY[r + 1] = rowY[r] + h + rowPadding;
+    }
+    float contentHeight = std::max(1.0f, std::floor(rowY.back()));
+    bool scrolling = rows && contentHeight > height;
+    ImGui::SetNextWindowContentSize({0, contentHeight});
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoScrollWithMouse
+        | (scrolling ? ImGuiWindowFlags_AlwaysVerticalScrollbar : ImGuiWindowFlags_NoScrollbar);
+    if (!ImGui::BeginChild("##thumbs", {0, 0}, ImGuiChildFlags_Borders, flags)) {
         ImGui::EndChild();
         ImGui::PopID();
         return;
     }
-    ImGuiIO& io = ImGui::GetIO();
-    ImGuiStyle& st = ImGui::GetStyle();
-    // sizes are at scale 1: they follow the UI's scale
-    float sc = st.FontScaleDpi > 0 ? st.FontScaleDpi : 1.0f;
-    // the wheel scrolls; with Ctrl it resizes
+    // Ctrl+wheel and the context menu update the next layout.
     if (ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows) && io.MouseWheel != 0) {
         if (io.KeyCtrl)
             size = std::clamp(size * std::pow(1.1f, io.MouseWheel), 60.0f, 800.0f);
@@ -211,37 +252,9 @@ void ThumbnailPanel::draw(Viewer& v)
         ImGui::MenuItem("Gaps Between Thumbnails", nullptr, &gaps);
         ImGui::EndPopup();
     }
-
-    std::vector<int> pages;
-    for (int p = 0; p < v.pageCount(); p++)
-        if (!filtering || v.pageHasMatches(p)) pages.push_back(p);
-
-    float avail = std::max(1.0f, ImGui::GetContentRegionAvail().x);
-    float gap = gaps ? st.ItemSpacing.x * 2 : 0;
-    float rowGap = gaps ? st.ItemSpacing.y : 0;
-    float px = size * sc; // the width on screen
-    int cols = std::max(1, static_cast<int>((avail + gap) / (px + gap)));
-    float cellW = (avail - gap * (cols - 1)) / cols;
-    float pad = gaps ? 6 * sc : 0;
-    float labelH = showLabels ? ImGui::GetTextLineHeightWithSpacing() : 0;
-    float imgW = std::max(1.0f, cellW - 2 * pad);
-    float rowPadding = 2 * pad + labelH + rowGap;
-    auto imageHeight = [&](int page) {
-        PageSize s = v.pageSize(page);
-        return static_cast<float>(imgW * s.h / s.w);
-    };
-    // row heights: the tallest page in each
-    size_t rows = (pages.size() + static_cast<size_t>(cols) - 1) / static_cast<size_t>(cols);
-    std::vector<float> rowY(rows + 1, 0);
-    for (size_t r = 0; r < rows; r++) {
-        float h = 0;
-        for (size_t k = r * cols; k < std::min(pages.size(), (r + 1) * cols); k++)
-            h = std::max(h, imageHeight(pages[k]));
-        rowY[r + 1] = rowY[r] + h + rowPadding;
-    }
     auto imageTop = [&](size_t row, float height) {
         float tallest = rowY[row + 1] - rowY[row] - rowPadding;
-        return rowY[row] + pad + (gaps ? (tallest - height) / 2 : 0);
+        return rowY[row] + pad + (spaced ? (tallest - height) / 2 : 0);
     };
 
     auto rowOf = [&](int page) {
@@ -250,9 +263,8 @@ void ThumbnailPanel::draw(Viewer& v)
     };
 
     ImGuiWindow* window = ImGui::GetCurrentWindow();
-    float contentHeight = std::max(1.0f, std::floor(rowY.back()));
     float wh = window->InnerRect.GetHeight();
-    float maxScroll = std::max(0.0f, contentHeight + 2 * window->WindowPadding.y - wh);
+    float maxScroll = scrolling ? ImGui::GetScrollMaxY() : 0;
     float actualScroll = ImGui::GetScrollY();
     float sy = std::min(actualScroll, maxScroll);
     ImVec2 base = ImGui::GetCursorScreenPos();
@@ -313,7 +325,7 @@ void ThumbnailPanel::draw(Viewer& v)
             ImGui::PushID(p);
             ImGui::InvisibleButton("##t", {cellW, rowH});
             bool hovered = ImGui::IsItemHovered();
-            if (gaps) {
+            if (spaced) {
                 if (p == cur) dl->AddRectFilled(cell, {cell.x + cellW, cell.y + rowH}, accent, 4);
                 else if (hovered) dl->AddRectFilled(cell, {cell.x + cellW, cell.y + rowH}, ImGui::GetColorU32(ImGuiCol_HeaderHovered), 4);
                 dl->AddRectFilled({i0.x + 1, i0.y + 2}, {i1.x + 1, i1.y + 2}, IM_COL32(0, 0, 0, 70));
@@ -326,12 +338,12 @@ void ThumbnailPanel::draw(Viewer& v)
                 double k2 = imgW / s.w;
                 dl->AddRect({i0.x + static_cast<float>(vis.x0 * k2), i0.y + static_cast<float>(vis.y0 * k2)}, {i0.x + static_cast<float>(vis.x1 * k2), i0.y + static_cast<float>(vis.y1 * k2)}, IM_COL32(230, 200, 0, 255), 0.0f, 0, 2.0f);
             }
-            if (!gaps && (p == cur || hovered)) {
+            if (!spaced && (p == cur || hovered)) {
                 ImU32 color = p == cur ? accent : ImGui::GetColorU32(ImGuiCol_HeaderHovered);
                 float inset = std::min({sc, imgW / 2, h / 2});
                 dl->AddRect({i0.x + inset, i0.y + inset}, {i1.x - inset, i1.y - inset}, color, 0, 0, 2 * inset);
             }
-            if (showLabels) {
+            if (labeled) {
                 std::string label = v.pageLabel(p);
                 ImVec2 ls = ImGui::CalcTextSize(label.c_str());
                 dl->AddText({cell.x + (cellW - ls.x) / 2, cell.y + rowH - labelH + rowGap / 2}, ImGui::GetColorU32(ImGuiCol_Text), label.c_str());
@@ -366,9 +378,6 @@ void ThumbnailPanel::draw(Viewer& v)
             ImGui::PopID();
         }
     }
-    // Item positions may be translated or clipped. The scroll range still
-    // covers the entire grid in its original content coordinates.
-    window->DC.CursorMaxPos.y = window->DC.CursorStartPos.y + contentHeight;
     ImGui::EndChild();
     ImGui::PopID();
 }
