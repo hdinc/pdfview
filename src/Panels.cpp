@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <optional>
 
 namespace pdfview {
 
@@ -84,6 +85,25 @@ void OutlinePanel::draw(Viewer& v)
         ImGui::TableSetupColumn("title", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn("page", ImGuiTableColumnFlags_WidthFixed, labelW);
         bool filtering = mFilter[0] != 0;
+        ImGuiID treeSeed = ImGui::GetID(filtering ? "##filtered-tree" : "##tree");
+        auto storageId = [&](const OutlineItem* item) { return ImHashData(&item, sizeof item, treeSeed); };
+        const OutlineItem* branch = nullptr;
+        std::optional<bool> branchOpen;
+        auto drawMenu = [&](const OutlineItem* item) {
+            bool hasChildren = item && !item->children.empty();
+            if (item) {
+                if (ImGui::MenuItem("Expand Whole Section", nullptr, false, hasChildren && !filtering)) {
+                    branch = item;
+                    branchOpen = true;
+                }
+                if (ImGui::MenuItem("Collapse Whole Section", nullptr, false, hasChildren && !filtering)) {
+                    branch = item;
+                    branchOpen = false;
+                }
+            }
+            if (ImGui::MenuItem("Expand All", nullptr, false, !filtering)) branchOpen = true;
+            if (ImGui::MenuItem("Collapse All", nullptr, false, !filtering)) branchOpen = false;
+        };
         std::function<void(const std::vector<OutlineItem>&)> rows = [&](const std::vector<OutlineItem>& list) {
             for (const auto& it : list) {
                 if (filtering && !matches(it, mFilter)) continue;
@@ -92,7 +112,10 @@ void OutlinePanel::draw(Viewer& v)
                 ImGuiTreeNodeFlags f = ImGuiTreeNodeFlags_SpanAllColumns | ImGuiTreeNodeFlags_OpenOnArrow
                     | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_DrawLinesToNodes;
                 if (it.children.empty()) f |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
-                if (&it == current) f |= ImGuiTreeNodeFlags_Selected;
+                else ImGui::SetNextItemStorageID(storageId(&it));
+                // BeginPopupContextItem uses the tree item's ID for the popup.
+                bool menuOpen = ImGui::IsPopupOpen(ImGui::GetID(&it), ImGuiPopupFlags_None);
+                if (&it == current || menuOpen) f |= ImGuiTreeNodeFlags_Selected;
                 if (filtering)
                     ImGui::SetNextItemOpen(true);
                 else if (scrollToCurrent && onPath(&it))
@@ -104,13 +127,19 @@ void OutlinePanel::draw(Viewer& v)
                 float right = origin.x + ImGui::GetContentRegionAvail().x;
                 ImVec2 titleSize = ImGui::CalcTextSize(it.title.c_str());
                 bool truncated = titleSize.x > right - labelX;
+                if (menuOpen) ImGui::PushStyleColor(ImGuiCol_Header, ImGui::GetStyleColorVec4(ImGuiCol_HeaderActive));
                 bool open = ImGui::TreeNodeEx(&it, f, "%s", truncated ? "" : it.title.c_str());
+                if (menuOpen) ImGui::PopStyleColor();
                 if (truncated && labelX < right && ImGui::IsItemVisible()) {
                     const char* title = it.title.data();
                     ImGui::RenderTextEllipsis(ImGui::GetWindowDrawList(), {labelX, origin.y}, {right, origin.y + titleSize.y},
                                               right, title, title + it.title.size(), &titleSize);
                 }
                 if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen() && it.dest.valid()) v.goTo(it.dest);
+                if (ImGui::BeginPopupContextItem()) {
+                    drawMenu(&it);
+                    ImGui::EndPopup();
+                }
                 if (truncated) ImGui::SetItemTooltip("%s", it.title.c_str());
                 if (&it == current && scrollToCurrent && !ImGui::IsItemVisible()) ImGui::SetScrollHereY(0.3f);
                 ImGui::TableNextColumn();
@@ -126,6 +155,21 @@ void OutlinePanel::draw(Viewer& v)
             }
         };
         rows(items);
+        if (ImGui::BeginPopupContextWindow("##outline-menu", ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
+            drawMenu(nullptr);
+            ImGui::EndPopup();
+        }
+        if (branchOpen) {
+            // Storage IDs are independent of depth, so changes reach collapsed descendants.
+            ImGuiStorage* storage = ImGui::GetStateStorage();
+            auto setOpen = [&](auto&& self, const OutlineItem& item) -> void {
+                if (item.children.empty()) return;
+                storage->SetBool(storageId(&item), *branchOpen);
+                for (const auto& child : item.children) self(self, child);
+            };
+            if (branch) setOpen(setOpen, *branch);
+            else for (const auto& item : items) setOpen(setOpen, item);
+        }
         ImGui::EndTable();
     }
     ImGui::PopStyleVar();

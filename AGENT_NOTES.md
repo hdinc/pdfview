@@ -60,14 +60,15 @@ does no file I/O of its own and launches no processes.
 - The sidebar starts to the left of the document tabs and follows the active document.
 - The standalone Find bar sits below the document and has its own Options popup.
 - Contents uses native tree lines and truncates titles to fit the sidebar.
+- The Contents context menu expands and collapses branches and highlights its target row.
 - Annotations are out of scope; documents open read-only.
 
 ## Docs
 - [doc/plans/](doc/plans/): implementation plans, dated.
 
 ## Current work
-- The Contents context menu is next. The original batch is saved in the pdfview and Hd stashes named
-  `Previous viewer changes for individual review`.
+- The thumbnail scrollbar transition is under investigation. The original batch is saved in the
+  pdfview and Hd stashes named `Previous viewer changes for individual review`.
 
 [doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md).
 - All phases are written and tested on Windows, including after merging upstream Hd's themes and fonts.

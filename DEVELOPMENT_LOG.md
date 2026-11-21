@@ -326,3 +326,21 @@
 - Used the main `build/` folder. All six CTest targets passed. A hidden Windows OpenGL check verified
   branch lines when expanding, collapsing, and filtering nested entries. The layout is ready for
   visual review.
+
+## 2026-11-22 01:27 +03:00 — Add a Contents context menu
+
+- Right-click a Contents entry for section and tree expansion commands, its page destination,
+  and bookmark and zoom actions. Right-click empty space for the tree-wide commands.
+- Expansion uses per-entry storage IDs so a section command reaches hidden descendants. Filtering
+  opens matching paths separately from the tree state saved by these commands.
+- Used the main `build/` folder. All six CTest targets passed. A Windows OpenGL check verified
+  recursive expansion and collapse, right-clicking the page-number column, saving the clicked
+  destination as a bookmark, and navigating to it with Next Bookmark.
+
+## 2026-11-22 01:39 +03:00 — Keep only expand and collapse in the Contents menu
+
+- The row menu contains four expand and collapse commands. The clicked row uses ImGui selection
+  highlighting while its popup is open.
+- All six CTest targets passed. The Windows integration check verified the four commands, that the
+  highlight stayed visible while the pointer moved into the menu, and that it cleared when the menu
+  closed. Rebuilt `build/bin/pdfview-app.exe` while leaving the older instance running.
