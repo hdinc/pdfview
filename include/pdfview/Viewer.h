@@ -252,7 +252,7 @@ private:
     int mLevel = 0;
     std::chrono::steady_clock::time_point mZoomChanged;
     bool mSettling = false;
-    // flipping rows (not continuous) with the wheel takes a push
+    // fractional wheel delta at the edge of a non-continuous row
     double mFlipPush = 0;
 
     // pages' links and text, read on the worker as pages come into view

@@ -23,7 +23,6 @@ static double uiScale()
     float s = ImGui::GetStyle().FontScaleDpi;
     return s > 0 ? s : 1.0;
 }
-static constexpr double kFlipPush = 3; // wheel notches against a row's end to flip
 static constexpr size_t kInfoCache = 200; // pages of links and text kept
 static constexpr int kMaxPanelPreviews = 96;
 static constexpr double kMaxThumbnailSide = 2048;
@@ -100,6 +99,7 @@ void Viewer::close()
     mLayout = {};
     mView = {};
     mSettling = false;
+    mFlipPush = 0;
     mInfo.clear();
     mLastInfoWanted.clear();
     mInfoNeed.clear();
@@ -989,13 +989,15 @@ void Viewer::handleMouse(ImVec2 origin, bool hovered, bool active)
             double dy = io.MouseWheel, dx = io.MouseWheelH;
             if (io.KeyShift) std::swap(dx, dy);
             if (!mMode.continuous && dy != 0) {
-                // against the row's end: a few notches flip to the next row
+                // At the end of a row, one notch flips it. Precision wheels
+                // can deliver a notch as several deltas in the same direction.
                 auto [b0, b1] = mView.band(mLayout);
                 double vh = mView.h / mView.zoom;
                 bool atEnd = dy < 0 ? mView.y + vh >= b1 - 0.5 : mView.y <= b0 + 0.5;
                 if (atEnd) {
-                    mFlipPush += std::abs(dy);
-                    if (mFlipPush >= kFlipPush) {
+                    if (mFlipPush * dy < 0) mFlipPush = 0;
+                    mFlipPush += dy;
+                    if (std::abs(mFlipPush) >= 1) {
                         mView.flip(dy < 0 ? 1 : -1, mLayout);
                         mFlipPush = 0;
                     }

@@ -271,3 +271,12 @@
   build moved it 28 pixels during a same-column resize. The updated build held it within half a pixel
   through same-column resizes and a 2→3→4→1→2 column sequence. The test also covered scrolling near
   the bottom and following viewer navigation. The interactive splitter drag awaits user review.
+
+## 2026-11-22 00:38 +03:00 — Turn the page with one wheel notch
+
+- A single wheel notch now flips the page in non-continuous single-page view when the viewport is at
+  the relevant page edge. Zoomed-in pages still scroll to the edge first. Fractional wheel input
+  accumulates toward one notch in the same direction.
+- Built the Windows app in `build/wheel-page-review`. All six CTest targets passed. A headless ImGui
+  check covered both directions, split deltas, in-page scrolling and flipping at high zoom, along
+  with continuous scrolling and Ctrl+wheel zoom. The Windows build is ready for user review.
