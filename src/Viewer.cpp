@@ -1,6 +1,7 @@
 #include <pdfview/Viewer.h>
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <climits>
 #include <cmath>
@@ -593,20 +594,39 @@ void Viewer::copy()
 
 void Viewer::find(const std::string& text, unsigned flags)
 {
-    if (!mWorker || state() != State::Ready) return;
     if (text == mFind.text && flags == mFind.flags && mFind.active) return;
+    startFind(text, flags, currentPage(), 1);
+}
+
+void Viewer::startFind(std::string text, unsigned flags, int from, int direction)
+{
+    if (!mWorker || state() != State::Ready) return;
     mFind = {};
-    mFind.text = text;
+    mFind.text = std::move(text);
     mFind.flags = flags;
-    if (text.empty()) {
+    if (mFind.text.empty()) {
         mWorker->find({}, flags, 0);
         return;
     }
     mFind.active = true;
-    mFind.from = currentPage();
-    mFind.search = mWorker->find(text, flags, mFind.from);
+    mFind.from = from;
+    mFind.search = mWorker->find(mFind.text, flags, from);
     mFind.jump = true;
-    mFind.dir = 1;
+    mFind.dir = direction;
+}
+
+void Viewer::startFindFromBar(unsigned flags, int direction)
+{
+    int from = mFindFromCurrentPage ? currentPage() : direction > 0 ? 0 : std::max(0, pageCount() - 1);
+    startFind(mFindInput, flags, from, direction);
+}
+
+void Viewer::setFindBarFlags(unsigned flags)
+{
+    if (mFindAsYouType || (mFind.active && mFind.text == mFindInput))
+        startFindFromBar(flags, 1);
+    else
+        startFind({}, flags, 0, 1);
 }
 
 void Viewer::takeFind()
@@ -651,8 +671,8 @@ bool Viewer::pageHasMatches(int page) const { return mFind.matches.count(page) >
 
 void Viewer::findNext()
 {
-    if (!mFind.active) {
-        if (mFindInput[0]) find(mFindInput, mFind.flags);
+    if (!mFind.active || (mFindBar && !mFindAsYouType && mFind.text != mFindInput)) {
+        if (mFindInput[0]) startFindFromBar(mFind.flags, 1);
         return;
     }
     auto& m = mFind.matches;
@@ -678,8 +698,8 @@ void Viewer::findNext()
 
 void Viewer::findPrev()
 {
-    if (!mFind.active) {
-        if (mFindInput[0]) find(mFindInput, mFind.flags);
+    if (!mFind.active || (mFindBar && !mFindAsYouType && mFind.text != mFindInput)) {
+        if (mFindInput[0]) startFindFromBar(mFind.flags, -1);
         return;
     }
     auto& m = mFind.matches;
@@ -695,7 +715,7 @@ void Viewer::findPrev()
         }
         return;
     }
-    int from = mFind.page >= 0 ? mFind.page : currentPage() + 1;
+    int from = mFind.page >= 0 ? mFind.page : mFind.from + 1;
     auto it = m.lower_bound(from);
     it = it == m.begin() ? std::prev(m.end()) : std::prev(it);
     mFind.page = it->first;
@@ -733,18 +753,25 @@ void Viewer::hideFindBar()
     find({}, mFind.flags);
 }
 
-void Viewer::drawFindBar()
+bool Viewer::drawFindInput(float width)
 {
-    if (state() != State::Ready) return;
-    ImGui::PushID("##findbar");
     if (mFocusFind) {
         ImGui::SetKeyboardFocusHere();
         mFocusFind = false;
     }
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 16);
+    ImGui::SetNextItemWidth(width);
     bool enter = ImGui::InputTextWithHint("##text", "Find...", mFindInput, sizeof mFindInput, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll);
-    bool active = ImGui::IsItemActive();
-    if (ImGui::IsItemEdited()) find(mFindInput, mFind.flags);
+    // InputText may deactivate itself when it consumes Escape.
+    if ((ImGui::IsItemActive() || ImGui::IsItemDeactivated()) && ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
+        hideFindBar();
+        return false;
+    }
+    if (ImGui::IsItemEdited()) {
+        if (mFindAsYouType)
+            startFindFromBar(mFind.flags, 1);
+        else if (mFind.active)
+            startFind({}, mFind.flags, 0, 1);
+    }
     if (enter) {
         if (ImGui::GetIO().KeyShift)
             findPrev();
@@ -752,7 +779,34 @@ void Viewer::drawFindBar()
             findNext();
         ImGui::SetKeyboardFocusHere(-1); // keep typing
     }
-    if (active && ImGui::IsKeyPressed(ImGuiKey_Escape)) hideFindBar();
+    return true;
+}
+
+void Viewer::findStatus(char* buffer, size_t size) const
+{
+    buffer[0] = 0;
+    if (!mFind.active) return;
+    bool pending = searching();
+    if (mFind.total == 0) {
+        if (pending)
+            std::snprintf(buffer, size, "Searching... %d%%", mFind.pagesDone * 100 / pageCount());
+        else
+            std::snprintf(buffer, size, "No matches");
+    } else if (int match = currentMatch(); match >= 0) {
+        std::snprintf(buffer, size, "%d of %d%s", match + 1, mFind.total, pending ? "+" : "");
+    } else {
+        std::snprintf(buffer, size, "%d matches%s", mFind.total, pending ? "+" : "");
+    }
+}
+
+void Viewer::drawFindBar()
+{
+    if (state() != State::Ready) return;
+    ImGui::PushID("##findbar");
+    if (!drawFindInput(ImGui::GetFontSize() * 16)) {
+        ImGui::PopID();
+        return;
+    }
     ImGui::SameLine(0, 2);
     if (ImGui::ArrowButton("##prev", ImGuiDir_Up)) findPrev();
     if (ImGui::IsItemHovered()) ImGui::SetTooltip("Previous match (Shift+Enter)");
@@ -763,28 +817,108 @@ void Viewer::drawFindBar()
         ImGui::SameLine(0, 2);
         bool on = mFind.flags & flag;
         if (on) ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
-        if (ImGui::Button(label)) {
-            unsigned f = on ? mFind.flags & ~flag : mFind.flags | flag;
-            mFind.active = false; // search again
-            find(mFindInput, f);
-            mFind.flags = f;
-        }
+        if (ImGui::Button(label)) setFindBarFlags(mFind.flags ^ flag);
         if (on) ImGui::PopStyleColor();
         if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", tip);
     };
     toggle("Aa", "Match case", FindCaseSensitive);
     toggle("W", "Whole words", FindWholeWords);
     ImGui::SameLine();
-    if (!mFind.active)
-        ImGui::TextDisabled(" ");
-    else if (mFind.total == 0)
-        ImGui::TextDisabled(searching() ? "Searching... %d%%" : "No matches", pageCount() ? mFind.pagesDone * 100 / pageCount() : 0);
-    else if (currentMatch() >= 0)
-        ImGui::Text("%d of %d%s", currentMatch() + 1, mFind.total, searching() ? "+" : "");
-    else
-        ImGui::Text("%d matches%s", mFind.total, searching() ? "+" : "");
+    char count[48];
+    findStatus(count, sizeof count);
+    ImGui::TextDisabled("%s", count[0] ? count : " ");
     ImGui::SameLine();
     if (ImGui::SmallButton("x")) hideFindBar();
+    ImGui::PopID();
+}
+
+void Viewer::drawFindFooter()
+{
+    if (state() != State::Ready) return;
+    ImGui::PushID("##find-footer");
+    const ImGuiStyle& style = ImGui::GetStyle();
+    float frame = ImGui::GetFrameHeight();
+    if (ImGui::InvisibleButton("##close", {frame, frame}, ImGuiButtonFlags_EnableNav)) {
+        hideFindBar();
+        ImGui::PopID();
+        return;
+    }
+    ImVec2 a = ImGui::GetItemRectMin(), b = ImGui::GetItemRectMax();
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    if (ImGui::IsItemHovered()) {
+        ImGuiCol color = ImGui::IsItemActive() ? ImGuiCol_ButtonActive : ImGuiCol_ButtonHovered;
+        draw->AddRectFilled(a, b, ImGui::GetColorU32(color), style.FrameRounding);
+    }
+    ImVec2 center{(a.x + b.x) / 2, (a.y + b.y) / 2};
+    float radius = frame * 0.16f;
+    float stroke = std::max(1.0f, frame / 24);
+    ImU32 ink = ImGui::GetColorU32(ImGuiCol_Text);
+    const ImVec2 descending[] = {{center.x - radius, center.y - radius}, {center.x + radius, center.y + radius}};
+    const ImVec2 ascending[] = {{center.x - radius, center.y + radius}, {center.x + radius, center.y - radius}};
+    draw->AddPolyline(descending, 2, ink, 0, stroke);
+    draw->AddPolyline(ascending, 2, ink, 0, stroke);
+    ImGui::SetItemTooltip("Close Find (Escape)");
+    ImGui::SameLine();
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Find:");
+    ImGui::SameLine();
+
+    constexpr const char* next = "    Next";
+    constexpr const char* previous = "    Previous";
+    float padding = 2 * style.FramePadding.x;
+    float optionsWidth = ImGui::CalcTextSize("Options").x + padding + frame;
+    float buttonWidth = std::max(ImGui::CalcTextSize(previous).x + padding, optionsWidth);
+    float available = ImGui::GetContentRegionAvail().x;
+    float gap = style.ItemSpacing.x;
+    bool compact = available < 3 * buttonWidth + 3 * gap + 2 * frame;
+    float navigationWidth = compact ? frame : buttonWidth;
+    if (!compact) optionsWidth = buttonWidth;
+    float inputWidth = available - 2 * navigationWidth - optionsWidth - 3 * gap;
+    char count[48];
+    findStatus(count, sizeof count);
+    float countWidth = count[0] ? ImGui::CalcTextSize(count).x + gap : 0;
+    bool showCount = countWidth > 0 && inputWidth - countWidth >= 3 * frame;
+    if (!drawFindInput(std::max(1.0f, inputWidth - (showCount ? countWidth : 0)))) {
+        ImGui::PopID();
+        return;
+    }
+    if (showCount) {
+        ImGui::SameLine();
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextDisabled("%s", count);
+    } else if (count[0]) {
+        ImGui::SetItemTooltip("%s", count);
+    }
+
+    auto matchButton = [&](const char* label, bool up) {
+        ImGui::SameLine();
+        if (compact)
+            return ImGui::ArrowButton(label, up ? ImGuiDir_Up : ImGuiDir_Down);
+        bool pressed = ImGui::Button(label, {navigationWidth, frame});
+        ImVec2 a = ImGui::GetItemRectMin(), b = ImGui::GetItemRectMax();
+        float font = ImGui::GetFontSize();
+        float textInset = (navigationWidth - ImGui::CalcTextSize(label).x) / 2;
+        float x = a.x + textInset + font * 0.35f, y = (a.y + b.y) / 2;
+        float dx = font * 0.26f, dy = font * (up ? -0.14f : 0.14f);
+        std::array<ImVec2, 3> points{{{x - dx, y - dy}, {x, y + dy}, {x + dx, y - dy}}};
+        ImGui::GetWindowDrawList()->AddPolyline(points.data(), 3, ImGui::GetColorU32(ImGuiCol_Text), 0, std::max(1.0f, font / 11));
+        return pressed;
+    };
+    if (matchButton(next, false)) findNext();
+    ImGui::SetItemTooltip("Next match (Enter)");
+    if (matchButton(previous, true)) findPrev();
+    ImGui::SetItemTooltip("Previous match (Shift+Enter)");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(optionsWidth);
+    if (ImGui::BeginCombo("##options", "Options")) {
+        bool caseSensitive = (mFind.flags & FindCaseSensitive) != 0;
+        if (ImGui::Checkbox("Case sensitive", &caseSensitive))
+            setFindBarFlags(mFind.flags ^ FindCaseSensitive);
+        ImGui::Checkbox("From current page", &mFindFromCurrentPage);
+        if (ImGui::Checkbox("Find as you type", &mFindAsYouType) && mFindAsYouType && mFind.text != mFindInput)
+            startFindFromBar(mFind.flags, 1);
+        ImGui::EndCombo();
+    }
     ImGui::PopID();
 }
 
@@ -1416,6 +1550,9 @@ void Viewer::registerActions(Actions& acts, std::function<Viewer*()> current)
     add("find.find", "Find...", "Find", "Ctrl+F", "/", [](Viewer& v) { v.showFindBar(); });
     add("find.next", "Find Next", "Find", "N", "F3", [](Viewer& v) { v.findNext(); });
     add("find.prev", "Find Previous", "Find", "Shift+N", "Shift+F3", [](Viewer& v) { v.findPrev(); });
+    add("find.whole_words", "Whole Words", "Find", "", "", [](Viewer& v) {
+        v.setFindBarFlags(v.findFlags() ^ FindWholeWords);
+    }).checked = [current] { return current() && (current()->findFlags() & FindWholeWords) != 0; };
 }
 
 }

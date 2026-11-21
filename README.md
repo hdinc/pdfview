@@ -19,6 +19,10 @@ cmake -B build -G Ninja && cmake --build build && ctest --test-dir build
 build/bin/pdfview-app file.pdf
 ```
 
+## Future improvements
+
+- Add regular expression (regex) search for PDF text.
+
 ## Embedding
 
 Add it with `add_subdirectory` and link `pdfview` (or `pdfview_core` for the parts without GL). It uses the

@@ -290,3 +290,31 @@
   OpenGL integration check measured the geometry and exercised tab switching, dragging the splitter,
   hiding and showing the sidebar, and closing the active and last tabs. The layout is ready for
   visual review.
+
+## 2026-11-22 00:50 +03:00 — Move the Find bar below the document
+
+- The standalone app reserves one row beneath the document for the Find bar. Opening it keeps the
+  top of the document area in place. Escape now closes Find even when the text field consumes the
+  key and deactivates itself.
+- Built the Windows app in `build/find-bar-review`. A hidden OpenGL integration check confirmed
+  that Ctrl+F focused the bar at the bottom, typing highlighted matches, Enter advanced, and Escape
+  restored the full viewport. All six CTest targets passed. The layout is ready for visual review.
+
+## 2026-11-22 01:00 +03:00 — Match the Find bar layout to the reference
+
+- The bottom bar has a close control, a Find label and expanding field, labeled Next and Previous
+  buttons, and an Options popup that opens above the bar. The popup controls case sensitivity, the
+  starting page, and whether typing starts a search. Whole Words remains available in the main Find
+  menu. The embeddable widget retains its compact Find bar.
+- Built the Windows app in `build/find-layout-review`. All six CTest targets passed. A hidden OpenGL
+  integration check and screenshot confirmed the alignment and popup placement. The check also
+  covered Ctrl+F, moving to the next match, Escape and the close button, starting on the current or
+  first page, waiting for Enter with live search disabled, and case-sensitive matching.
+
+## 2026-11-22 01:07 +03:00 — Center the Find bar close icon
+
+- Draw the close icon from the center of its button so its placement is independent of font metrics.
+  The button keeps hover feedback, its tooltip, and keyboard navigation.
+- Added regular expression search to the future improvements in `README.md`.
+- Built the Windows app in `build/find-icon-review`. All six CTest targets and the Windows integration
+  check passed, including measuring the icon's center and clicking it to close the bar.

@@ -138,6 +138,8 @@ public:
     bool pageHasMatches(int page) const;
     // a find bar: text, previous/next, options, count; place it anywhere
     void drawFindBar();
+    // full-width layout for a search row below the document
+    void drawFindFooter();
     void showFindBar(); // and focus its text
     bool findBarShown() const { return mFindBar; }
     void hideFindBar();
@@ -226,6 +228,11 @@ private:
     int linkAt(int page, double px, double py);
     void follow(const Link& l);
     void showMatch();
+    void startFind(std::string text, unsigned flags, int from, int direction);
+    void startFindFromBar(unsigned flags, int direction);
+    void setFindBarFlags(unsigned flags);
+    bool drawFindInput(float width);
+    void findStatus(char* buffer, size_t size) const;
     History::Entry here() const;
     void jumpTo(History::Entry e);
 
@@ -289,6 +296,8 @@ private:
     } mFind;
     bool mFindBar = false;
     bool mFocusFind = false;
+    bool mFindFromCurrentPage = true;
+    bool mFindAsYouType = true;
     char mFindInput[256] = "";
 
     char mPageInput[32] = "";

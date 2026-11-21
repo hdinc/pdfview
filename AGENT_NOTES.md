@@ -28,6 +28,7 @@ does no file I/O of its own and launches no processes.
 - Git Bash puts Git's own `/mingw64/bin` (old libstdc++) first. Prefix `PATH=/c/msys64/ucrt64/bin:$PATH`,
   or hdres and the tests fail with 0xc0000139.
 - `cmake -B build -G Ninja && cmake --build build && ctest --test-dir build --output-on-failure`
+- Use the main `build/` folder for changes under review.
 - Hd's tests run too with `-DHD_BUILD_TESTS=ON`. Its font test takes about 10 s.
 - `build/bin/pdfview-app file.pdf`. Settings go to `%APPDATA%\pdfview\settings.ini`; set APPDATA to keep
   test runs out of the real one.
@@ -57,14 +58,15 @@ does no file I/O of its own and launches no processes.
 - The thumbnail context menu controls page labels and gaps. Clicking a thumbnail keeps sidebar scroll.
 - In non-continuous view, one wheel notch at the page edge turns the page.
 - The sidebar starts to the left of the document tabs and follows the active document.
+- The standalone Find bar sits below the document and has its own Options popup.
 - Annotations are out of scope; documents open read-only.
 
 ## Docs
 - [doc/plans/](doc/plans/): implementation plans, dated.
 
 ## Current work
-- Moving the Find bar below the document is next. The original batch is saved in the pdfview and Hd
-  stashes named `Previous viewer changes for individual review`.
+- Contents tree lines are next. The original batch is saved in the pdfview and Hd stashes named
+  `Previous viewer changes for individual review`.
 
 [doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md).
 - All phases are written and tested on Windows, including after merging upstream Hd's themes and fonts.

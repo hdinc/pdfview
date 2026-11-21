@@ -373,6 +373,7 @@ void App::drawMenus()
         menuItem("find.find");
         menuItem("find.next");
         menuItem("find.prev");
+        menuItem("find.whole_words");
         ImGui::Separator();
         menuItem("tool.browse");
         menuItem("tool.text");
@@ -619,8 +620,22 @@ void App::drawWorkspace()
     if (tab->viewer->state() == Viewer::State::Failed && tab->viewer->error() == "locked")
         drawLocked(*tab);
     else {
-        if (tab->viewer->findBarShown()) tab->viewer->drawFindBar();
-        tab->viewer->draw("viewer");
+        Viewer& viewer = *tab->viewer;
+        bool showFind = viewer.findBarShown() && viewer.state() == Viewer::State::Ready;
+        const ImVec2 spacing = ImGui::GetStyle().ItemSpacing;
+        ImVec2 padding{spacing.x / 2, spacing.y / 2};
+        float findHeight = ImGui::GetFrameHeight() + 2 * padding.y;
+        viewer.draw("viewer", {0, showFind ? -(findHeight + spacing.y) : 0});
+        if (showFind) {
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, padding);
+            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImGui::GetStyleColorVec4(ImGuiCol_MenuBarBg));
+            bool visible = ImGui::BeginChild("##find-footer", {0, findHeight}, ImGuiChildFlags_AlwaysUseWindowPadding,
+                                            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+            ImGui::PopStyleColor();
+            ImGui::PopStyleVar();
+            if (visible) viewer.drawFindFooter();
+            ImGui::EndChild();
+        }
     }
     ImGui::PopID();
     ImGui::EndGroup();
