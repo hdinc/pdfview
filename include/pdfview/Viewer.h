@@ -204,6 +204,8 @@ private:
     void relayout(ViewMode m);
     void applyZoomMode();
     void handleMouse(ImVec2 origin, bool hovered, bool active);
+    void updateAutoscroll();
+    void drawAutoscrollMarker(ImDrawList* dl, ImVec2 origin, ImVec2 size) const;
     void drawToolbar();
     void drawPages(ImDrawList* dl, ImVec2 origin, ImVec2 size);
     void drawOverlays(ImDrawList* dl, ImVec2 origin, ImVec2 size);
@@ -261,6 +263,9 @@ private:
     bool mSettling = false;
     // fractional wheel delta at the edge of a non-continuous row
     double mFlipPush = 0;
+    bool mAutoscrolling = false;
+    ImVec2 mAutoscrollOrigin{};
+    double mAutoscrollEdgeTravel = 0; // screen pixels accumulated at a page edge
 
     // pages' links and text, read on the worker as pages come into view
     std::map<int, Info> mInfo;

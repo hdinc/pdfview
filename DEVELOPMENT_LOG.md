@@ -365,3 +365,34 @@
   thumbnail by 13 pixels when the sidebar grew one pixel. The new layout removed that jump and
   kept thumbnail width identical when changing only the panel height to show or hide the scrollbar.
   The scrollbar sweep, resize anchor, and Windows splitter checks passed.
+
+## 2026-11-22 02:05 +03:00 — Add middle-click autoscroll
+
+- A middle click shows an autoscroll marker. The pointer controls speed and direction, and a middle
+  drag still pans. A click, key, wheel movement, or loss of focus stops autoscroll.
+- In non-continuous view, movement at a page edge accumulates over a viewport's height before
+  turning the page. This sets the page-turn rate by pointer distance, even when a page already fits.
+- Built in the main `build/` folder. All six CTest targets and headless ImGui checks passed.
+  The checks covered velocity, horizontal movement, cancellation, middle drag, paced page turns,
+  and one-notch wheel navigation. The Windows build is ready for review.
+
+## 2026-11-22 02:24 +03:00 — Support both middle-button autoscroll gestures
+
+- A middle press starts autoscroll immediately. A release without dragging leaves it running, and
+  the next click stops it. Moving the pointer while holding the middle button scrolls until release.
+- Rebuilt in the main `build/` folder while leaving the older instance running. All six CTest
+  targets, the headless gesture check, and the Windows OpenGL gesture check passed.
+
+## 2026-11-22 02:28 +03:00 — Increase middle-button autoscroll sensitivity
+
+- Increased the scroll speed for a given pointer distance by about 17% below the existing speed
+  cap. The dead zone remains the same.
+- Rebuilt in the main `build/` folder. All six CTest targets passed, along with the measured
+  autoscroll speed check and the Windows gesture check.
+
+## 2026-11-22 02:31 +03:00 — Accelerate autoscroll exponentially with pointer distance
+
+- Restored the original sensitivity just outside the dead zone. Speed now increases exponentially
+  as the pointer moves farther from the marker, up to the existing cap.
+- Rebuilt in the main `build/` folder. All six CTest targets and the Windows gesture check passed.
+  The headless check measured speed near the dead zone, farther away, and at the cap.

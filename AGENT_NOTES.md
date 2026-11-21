@@ -58,6 +58,7 @@ does no file I/O of its own and launches no processes.
 - Thumbnails request a whole-page render when the standard preview is smaller than their display size.
 - The thumbnail context menu controls page labels and gaps. Clicking a thumbnail keeps sidebar scroll.
 - In non-continuous view, one wheel notch at the page edge turns the page.
+- Middle-click toggles autoscroll. A middle drag autoscrolls until release.
 - The sidebar starts to the left of the document tabs and follows the active document.
 - The standalone Find bar sits below the document and has its own Options popup.
 - Contents uses native tree lines and truncates titles to fit the sidebar.
@@ -68,8 +69,8 @@ does no file I/O of its own and launches no processes.
 - [doc/plans/](doc/plans/): implementation plans, dated.
 
 ## Current work
-- Middle-click autoscroll is next. The original batch is saved in the pdfview and Hd stashes named
-  `Previous viewer changes for individual review`.
+- Animated Space and Shift+Space scrolling in continuous view is next. The original batch is saved
+  in the pdfview and Hd stashes named `Previous viewer changes for individual review`.
 
 [doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md).
 - All phases are written and tested on Windows, including after merging upstream Hd's themes and fonts.

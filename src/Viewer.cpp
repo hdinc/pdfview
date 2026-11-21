@@ -76,6 +76,7 @@ void Viewer::open(const std::string& path, const std::string& password)
 
 void Viewer::releaseTextures()
 {
+    mAutoscrolling = false;
     for (auto& [k, t] : mTiles)
         freeTex(t);
     mTiles.clear();
@@ -101,6 +102,7 @@ void Viewer::close()
     mView = {};
     mSettling = false;
     mFlipPush = 0;
+    mAutoscrolling = false;
     mInfo.clear();
     mLastInfoWanted.clear();
     mInfoNeed.clear();
@@ -976,7 +978,8 @@ ImTextureID Viewer::pageTexture(int page, double pixelWidth, int& w, int& h)
 
 bool Viewer::needsFrames() const
 {
-    return mSettling || !mPending.empty() || state() == State::Loading || mCopyPending || (mPress.on && mPress.selecting) || (mActions && mActions->pending().n > 0);
+    return mAutoscrolling || mSettling || !mPending.empty() || state() == State::Loading
+        || mCopyPending || (mPress.on && mPress.selecting) || (mActions && mActions->pending().n > 0);
 }
 
 double Viewer::fbScale() const
@@ -1104,13 +1107,17 @@ void Viewer::evict()
 void Viewer::handleMouse(ImVec2 origin, bool hovered, bool active)
 {
     ImGuiIO& io = ImGui::GetIO();
+    bool stopClick = mAutoscrolling && (ImGui::IsMouseClicked(ImGuiMouseButton_Left)
+        || ImGui::IsMouseClicked(ImGuiMouseButton_Middle) || ImGui::IsMouseClicked(ImGuiMouseButton_Right));
+    if (stopClick || io.MouseWheel != 0 || io.MouseWheelH != 0 || io.AppFocusLost)
+        mAutoscrolling = false;
     double sx = io.MousePos.x - origin.x, sy = io.MousePos.y - origin.y;
     int page = -1;
     double px = 0, py = 0;
     bool onPage = (hovered || active) && pageAtScreen(sx, sy, page, px, py);
     mHoverPage = -1;
     mHoverLink = -1;
-    if (hovered && onPage && !(mPress.on && mPress.dragged)) {
+    if (!mAutoscrolling && !stopClick && hovered && onPage && !(mPress.on && mPress.dragged)) {
         mHoverLink = linkAt(page, px, py);
         if (mHoverLink >= 0) mHoverPage = page;
     }
@@ -1146,10 +1153,14 @@ void Viewer::handleMouse(ImVec2 origin, bool hovered, bool active)
 
     if (ImGui::IsItemActivated()) {
         mPress = {};
-        mPress.on = true;
+        mPress.on = !stopClick;
         mPress.button = ImGui::IsMouseDown(ImGuiMouseButton_Left) ? ImGuiMouseButton_Left : ImGuiMouseButton_Middle;
         mPress.at = io.MousePos;
-        if (mPress.button == ImGuiMouseButton_Left && onPage) {
+        if (mPress.on && mPress.button == ImGuiMouseButton_Middle) {
+            mAutoscrolling = true;
+            mAutoscrollOrigin = mPress.at;
+            mAutoscrollEdgeTravel = 0;
+        } else if (mPress.on && onPage) {
             int clicks = io.MouseClickedCount[ImGuiMouseButton_Left];
             if (clicks >= 2) {
                 selectWord(caretAt(page, px, py), clicks >= 3);
@@ -1163,9 +1174,13 @@ void Viewer::handleMouse(ImVec2 origin, bool hovered, bool active)
             }
         }
     }
-    if (mPress.on && active) {
+    bool released = ImGui::IsItemDeactivated();
+    bool middle = mPress.button == ImGuiMouseButton_Middle;
+    if (mPress.on && (active || (middle && released)) && ImGui::IsMousePosValid()) {
         ImVec2 d{io.MousePos.x - mPress.at.x, io.MousePos.y - mPress.at.y};
         if (!mPress.dragged && d.x * d.x + d.y * d.y > 9) mPress.dragged = true;
+    }
+    if (mPress.on && active && !middle) {
         if (mPress.dragged && mPress.selecting) {
             int p;
             double x, y;
@@ -1174,13 +1189,17 @@ void Viewer::handleMouse(ImVec2 origin, bool hovered, bool active)
             // past the view's edge: scroll along
             if (sy < 0) mView.y += sy * 0.2 / mView.zoom;
             if (sy > mView.h) mView.y += (sy - mView.h) * 0.2 / mView.zoom;
-        } else if (mPress.dragged && (mPress.button == ImGuiMouseButton_Middle || mTool == Tool::Browse || !mPress.selecting)) {
+        } else if (mPress.dragged) {
             mView.x -= io.MouseDelta.x / mView.zoom;
             mView.y -= io.MouseDelta.y / mView.zoom;
         }
     }
-    if (mPress.on && ImGui::IsItemDeactivated()) {
-        if (!mPress.dragged && mPress.button == ImGuiMouseButton_Left) {
+    if (mPress.on && released) {
+        if (middle) {
+            // A plain click latches autoscroll; releasing after a drag stops it.
+            if (mPress.dragged || !hovered || !ImGui::IsMouseReleased(ImGuiMouseButton_Middle))
+                mAutoscrolling = false;
+        } else if (!mPress.dragged) {
             int p;
             double x, y;
             int l = -1;
@@ -1193,7 +1212,7 @@ void Viewer::handleMouse(ImVec2 origin, bool hovered, bool active)
         mPress = {};
     }
 
-    if (mPress.on && mPress.dragged && !mPress.selecting)
+    if (mPress.on && !middle && mPress.dragged && !mPress.selecting)
         ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
     else if (mHoverLink >= 0)
         ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
@@ -1207,6 +1226,71 @@ void Viewer::handleMouse(ImVec2 origin, bool hovered, bool active)
             ImGui::SetTooltip("Go to page %s", pageLabel(l.dest.page).c_str());
     }
     mView.clamp(mLayout);
+}
+
+void Viewer::updateAutoscroll()
+{
+    if (!mAutoscrolling) return;
+    for (int key = ImGuiKey_NamedKey_BEGIN; key < ImGuiKey_GamepadStart; ++key) {
+        if (ImGui::IsKeyPressed(static_cast<ImGuiKey>(key), false)) {
+            mAutoscrolling = false;
+            return;
+        }
+    }
+    if (!ImGui::IsMousePosValid()) return;
+
+    const ImGuiIO& io = ImGui::GetIO();
+    double scale = uiScale();
+    auto distance = [&](double offset) {
+        constexpr double initialSensitivity = 5;
+        constexpr double growthDistance = 200;
+        constexpr double speedLimit = 5000;
+        double beyondDeadZone = std::clamp(std::abs(offset) / scale - 10, 0.0, speedLimit / initialSensitivity);
+        double speed = initialSensitivity * growthDistance * std::expm1(beyondDeadZone / growthDistance);
+        return std::copysign(std::min(speed, speedLimit) * scale * std::min(io.DeltaTime, 0.05f), offset);
+    };
+    double dx = distance(io.MousePos.x - mAutoscrollOrigin.x);
+    double dy = distance(io.MousePos.y - mAutoscrollOrigin.y);
+    mView.x += dx / mView.zoom;
+    auto [top, bottom] = mView.band(mLayout);
+    double height = mView.h / mView.zoom;
+    bool pushingEdge = !mMode.continuous && dy != 0
+        && (dy > 0 ? mView.y + height >= bottom - 0.5 : mView.y <= top + 0.5);
+    if (pushingEdge) {
+        // A fitted page is always at an edge. Let the pointer speed decide
+        // how long a page stays visible instead of flipping every frame.
+        if (mAutoscrollEdgeTravel * dy < 0) mAutoscrollEdgeTravel = 0;
+        mAutoscrollEdgeTravel += dy;
+        if (std::abs(mAutoscrollEdgeTravel) >= mView.h) {
+            mView.flip(dy > 0 ? 1 : -1, mLayout);
+            mAutoscrollEdgeTravel = 0;
+        }
+    } else {
+        mAutoscrollEdgeTravel = 0;
+        mView.y += dy / mView.zoom;
+    }
+    mView.clamp(mLayout);
+}
+
+void Viewer::drawAutoscrollMarker(ImDrawList* dl, ImVec2 origin, ImVec2 size) const
+{
+    float scale = static_cast<float>(uiScale());
+    float radius = 13 * scale;
+    float arrow = 4 * scale;
+    float offset = 5 * scale;
+    ImVec2 c = mAutoscrollOrigin;
+    ImU32 ink = ImGui::GetColorU32(ImGuiCol_Text);
+    dl->PushClipRect(origin, {origin.x + size.x, origin.y + size.y}, true);
+    dl->AddCircleFilled(c, radius, ImGui::GetColorU32(ImGuiCol_WindowBg));
+    dl->AddCircle(c, radius, ink, 0, scale);
+    dl->AddCircleFilled(c, 1.6f * scale, ink);
+    dl->AddTriangleFilled({c.x, c.y - offset - arrow}, {c.x - arrow, c.y - offset}, {c.x + arrow, c.y - offset}, ink);
+    dl->AddTriangleFilled({c.x, c.y + offset + arrow}, {c.x - arrow, c.y + offset}, {c.x + arrow, c.y + offset}, ink);
+    if (mLayout.width > mView.w / mView.zoom) {
+        dl->AddTriangleFilled({c.x - offset - arrow, c.y}, {c.x - offset, c.y - arrow}, {c.x - offset, c.y + arrow}, ink);
+        dl->AddTriangleFilled({c.x + offset + arrow, c.y}, {c.x + offset, c.y - arrow}, {c.x + offset, c.y + arrow}, ink);
+    }
+    dl->PopClipRect();
 }
 
 // --- drawing
@@ -1444,6 +1528,9 @@ void Viewer::draw(const char* id, ImVec2 size)
         ImGui::SetItemKeyOwner(ImGuiKey_MouseWheelX);
     }
     handleMouse(origin, hovered, active);
+    updateAutoscroll();
+    if (mAutoscrolling && hovered)
+        ImGui::SetMouseCursor(mLayout.width > mView.w / mView.zoom ? ImGuiMouseCursor_ResizeAll : ImGuiMouseCursor_ResizeNS);
     drawScrollbar({origin.x + canvas.x, origin.y}, {scrollbarW(), canvas.y});
 
     if (mSettling && Clock::now() - mZoomChanged >= kSettle) {
@@ -1459,6 +1546,7 @@ void Viewer::draw(const char* id, ImVec2 size)
     ImDrawList* dl = ImGui::GetWindowDrawList();
     drawPages(dl, origin, canvas);
     drawOverlays(dl, origin, canvas);
+    if (mAutoscrolling) drawAutoscrollMarker(dl, origin, canvas);
 
     ImGui::EndChild();
     ImGui::PopID();
