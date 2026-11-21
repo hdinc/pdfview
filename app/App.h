@@ -60,8 +60,9 @@ private:
     void drawMenus();
     void drawToolbar();
     void drawViewModeMenu();
-    void drawTabs();
-    void drawSidebar(Tab& t);
+    void drawWorkspace();
+    Tab* drawTabs();
+    void drawSidebar(Tab& t, float width, float splitterWidth);
     void drawBookmarks(Tab& t);
     void drawLocked(Tab& t);
     void drawDialogs();

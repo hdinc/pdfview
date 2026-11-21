@@ -310,7 +310,7 @@ void App::menuItem(const char* id)
 
 bool App::needsFrames() const
 {
-    if (mActions.pending().n > 0 || mShortcutEditor.capturing()) return true;
+    if (mSelect || mActions.pending().n > 0 || mShortcutEditor.capturing()) return true;
     for (const auto& t : mTabs)
         if (t->changedAt >= 0 || (t->id == mActive && t->viewer->needsFrames())) return true;
     return false;
@@ -334,7 +334,7 @@ void App::frame()
     ImGui::PopStyleVar(2);
     drawMenus();
     drawToolbar();
-    drawTabs();
+    drawWorkspace();
     ImGui::End();
     drawDialogs();
 
@@ -580,19 +580,56 @@ void App::drawToolbar()
     if (Hd::iconButton(Icon::bookmark, tip("Add Bookmark", "bookmark.add").c_str(), false, ready)) mActions.trigger("bookmark.add");
 }
 
-void App::drawTabs()
+void App::drawWorkspace()
 {
+    const ImVec2 origin = ImGui::GetCursorScreenPos();
+    const ImVec2 avail = ImGui::GetContentRegionAvail();
     if (mTabs.empty()) {
-        ImVec2 avail = ImGui::GetContentRegionAvail();
         const char* msg = "Open a PDF with Ctrl+O, or drop one here.";
         ImVec2 ts = ImGui::CalcTextSize(msg);
-        ImGui::SetCursorPos({ImGui::GetCursorPosX() + std::max(0.0f, (avail.x - ts.x) / 2), ImGui::GetCursorPosY() + std::max(0.0f, (avail.y - ts.y) / 2)});
+        ImGui::SetCursorScreenPos({origin.x + std::max(0.0f, (avail.x - ts.x) / 2),
+                                   origin.y + std::max(0.0f, (avail.y - ts.y) / 2)});
         ImGui::TextDisabled("%s", msg);
         mActive = 0;
+        mSelect = 0;
         return;
     }
-    if (!ImGui::BeginTabBar("##tabs", ImGuiTabBarFlags_Reorderable | ImGuiTabBarFlags_FittingPolicyScroll | ImGuiTabBarFlags_TabListPopupButton)) return;
-    uint64_t shown = 0;
+
+    float scale = mGui.scale();
+    float maxSidebarWidth = std::max(0.0f, avail.x * 0.7f);
+    float sidebarWidth = mSettings.sidebar
+        ? std::floor(std::clamp(mSettings.sidebarWidth * scale, std::min(150 * scale, maxSidebarWidth), maxSidebarWidth))
+        : 0;
+    float splitterWidth = std::max(1.0f, std::floor(std::min(8 * scale, avail.x * 0.1f)));
+    float documentX = origin.x + (sidebarWidth > 0 ? sidebarWidth + splitterWidth : 0);
+
+    // Resolve the visible tab first so the sidebar and document use the same viewer.
+    ImGui::SetCursorScreenPos({documentX, origin.y});
+    Tab* tab = drawTabs();
+    if (!tab) return;
+    float documentY = ImGui::GetCursorScreenPos().y;
+    if (sidebarWidth > 0) {
+        ImGui::SetCursorScreenPos(origin);
+        drawSidebar(*tab, sidebarWidth, splitterWidth);
+    }
+
+    ImGui::SetCursorScreenPos({documentX, documentY});
+    ImGui::BeginGroup();
+    ImGui::PushID(tab);
+    if (tab->viewer->state() == Viewer::State::Failed && tab->viewer->error() == "locked")
+        drawLocked(*tab);
+    else {
+        if (tab->viewer->findBarShown()) tab->viewer->drawFindBar();
+        tab->viewer->draw("viewer");
+    }
+    ImGui::PopID();
+    ImGui::EndGroup();
+}
+
+App::Tab* App::drawTabs()
+{
+    if (!ImGui::BeginTabBar("##tabs", ImGuiTabBarFlags_Reorderable | ImGuiTabBarFlags_FittingPolicyScroll | ImGuiTabBarFlags_TabListPopupButton)) return nullptr;
+    Tab* shown = nullptr;
     size_t closeIdx = SIZE_MAX;
     for (size_t i = 0; i < mTabs.size(); i++) {
         Tab& t = *mTabs[i];
@@ -605,16 +642,7 @@ void App::drawTabs()
             ImGui::SetTooltip("%s", t.path.c_str());
         }
         if (sel) {
-            shown = t.id;
-            if (t.viewer->state() == Viewer::State::Failed && t.viewer->error() == "locked")
-                drawLocked(t);
-            else {
-                if (mSettings.sidebar) drawSidebar(t);
-                ImGui::BeginGroup();
-                if (t.viewer->findBarShown()) t.viewer->drawFindBar();
-                t.viewer->draw("viewer");
-                ImGui::EndGroup();
-            }
+            shown = &t;
             ImGui::EndTabItem();
         }
         if (!open) closeIdx = i;
@@ -622,30 +650,34 @@ void App::drawTabs()
     ImGui::EndTabBar();
     mSelect = 0;
     // a tab sent to the back gives its textures up
-    if (shown != mActive) {
+    uint64_t shownId = shown ? shown->id : 0;
+    if (shownId != mActive) {
         for (auto& t : mTabs)
             if (t->id == mActive) t->viewer->releaseTextures();
-        mActive = shown;
+        mActive = shownId;
     }
+    // close() keeps the tab alive through the current frame in mDead.
     if (closeIdx != SIZE_MAX) close(closeIdx);
+    return shown;
 }
 
-void App::drawSidebar(Tab& t)
+void App::drawSidebar(Tab& t, float width, float splitterWidth)
 {
     ImVec2 avail = ImGui::GetContentRegionAvail();
-    // the width is kept at scale 1, so it follows the UI's size
     float sc = mGui.scale();
-    mSettings.sidebarWidth = std::clamp(mSettings.sidebarWidth, 150.0f, std::max(150.0f, avail.x * 0.7f / sc));
-    ImGui::BeginChild("##sidebar", {mSettings.sidebarWidth * sc, 0});
+    ImGui::PushID(&t);
+    ImGui::BeginChild("##sidebar", {width, 0});
     if (ImGui::BeginTabBar("##sidetabs")) {
         const char* names[] = {"Thumbnails", "Contents", "Bookmarks"};
         for (int i = 0; i < 3; i++) {
             ImGuiTabItemFlags f = mSideForce && mSettings.sidebarTab == i ? ImGuiTabItemFlags_SetSelected : 0;
             if (ImGui::BeginTabItem(names[i], nullptr, f)) {
                 if (!mSideForce) mSettings.sidebarTab = i;
-                if (i == 0) mThumbs.draw(*t.viewer);
-                if (i == 1) mOutline.draw(*t.viewer);
-                if (i == 2) drawBookmarks(t);
+                if (t.viewer->state() == Viewer::State::Ready) {
+                    if (i == 0) mThumbs.draw(*t.viewer);
+                    if (i == 1) mOutline.draw(*t.viewer);
+                    if (i == 2) drawBookmarks(t);
+                }
                 ImGui::EndTabItem();
             }
         }
@@ -653,9 +685,10 @@ void App::drawSidebar(Tab& t)
         ImGui::EndTabBar();
     }
     ImGui::EndChild();
+    ImGui::PopID();
     // the splitter
     ImGui::SameLine(0, 0);
-    ImGui::InvisibleButton("##split", {8 * sc, std::max(1.0f, avail.y)});
+    ImGui::InvisibleButton("##split", {splitterWidth, std::max(1.0f, avail.y)});
     bool hot = ImGui::IsItemHovered() || ImGui::IsItemActive();
     if (hot) ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
     {
@@ -663,8 +696,7 @@ void App::drawSidebar(Tab& t)
         float x = (a.x + b.x) / 2;
         ImGui::GetWindowDrawList()->AddLine({x, a.y}, {x, b.y}, ImGui::GetColorU32(hot ? ImGuiCol_SeparatorActive : ImGuiCol_Separator), hot ? 2 * sc : sc);
     }
-    if (ImGui::IsItemActive()) mSettings.sidebarWidth += ImGui::GetIO().MouseDelta.x / sc;
-    ImGui::SameLine(0, 0);
+    if (ImGui::IsItemActive()) mSettings.sidebarWidth = std::max(150.0f, (width + ImGui::GetIO().MouseDelta.x) / sc);
 }
 
 void App::drawBookmarks(Tab& t)

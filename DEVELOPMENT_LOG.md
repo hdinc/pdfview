@@ -280,3 +280,13 @@
 - Built the Windows app in `build/wheel-page-review`. All six CTest targets passed. A headless ImGui
   check covered both directions, split deltas, in-page scrolling and flipping at high zoom, along
   with continuous scrolling and Ctrl+wheel zoom. The Windows build is ready for user review.
+
+## 2026-11-22 00:45 +03:00 — Put the sidebar to the left of the document tabs
+
+- The sidebar and splitter start alongside the tab strip and span the full document area. The tab
+  strip resolves the visible document before drawing the sidebar, so both panes use the same viewer
+  in each frame. The sidebar retains its per-document scroll state.
+- Built the Windows app in `build/sidebar-layout-review` and passed all six CTest targets. A hidden
+  OpenGL integration check measured the geometry and exercised tab switching, dragging the splitter,
+  hiding and showing the sidebar, and closing the active and last tabs. The layout is ready for
+  visual review.

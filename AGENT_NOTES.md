@@ -56,14 +56,15 @@ does no file I/O of its own and launches no processes.
 - Thumbnails request a whole-page render when the standard preview is smaller than their display size.
 - The thumbnail context menu controls page labels and gaps. Clicking a thumbnail keeps sidebar scroll.
 - In non-continuous view, one wheel notch at the page edge turns the page.
+- The sidebar starts to the left of the document tabs and follows the active document.
 - Annotations are out of scope; documents open read-only.
 
 ## Docs
 - [doc/plans/](doc/plans/): implementation plans, dated.
 
 ## Current work
-- Moving the sidebar to the left of the document tabs is next. The original batch is saved in the
-  pdfview and Hd stashes named `Previous viewer changes for individual review`.
+- Moving the Find bar below the document is next. The original batch is saved in the pdfview and Hd
+  stashes named `Previous viewer changes for individual review`.
 
 [doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md).
 - All phases are written and tested on Windows, including after merging upstream Hd's themes and fonts.
