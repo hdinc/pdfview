@@ -8,6 +8,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <span>
 #include <string>
 
 #include <imgui.h>
@@ -58,6 +59,10 @@ public:
     // view; for a viewer that isn't shown (a background tab). The next
     // draw() asks for its tiles again.
     void releaseTextures();
+    // Stops tile rendering and keeps the last displayed viewport's tiles and thumbnails.
+    void suspendRendering();
+    // Limit the combined texture cache of distinct viewers that are inactive this frame.
+    static void trimInactiveCaches(std::span<Viewer* const> inactive, size_t budget);
 
     enum class State { Empty, Loading, Ready, Failed };
     State state() const;
@@ -188,9 +193,13 @@ private:
     struct Tex {
         unsigned id = 0; // 0: rendering failed, don't ask again
         int w = 0, h = 0;
-        uint64_t used = 0; // frame
-        int panelFrame = -1; // ImGui frame, independent of when Viewer::draw runs
+        int used = -1; // ImGui frame when requested or drawn
+        int drawnInPanel = -1;
+        int drawnInDocument = -1;
+
+        size_t bytes() const { return static_cast<size_t>(w) * h * 4; }
     };
+    using TileCache = std::map<TileKey, Tex>;
     struct Caret {
         int page = -1;
         int pos = 0; // before character pos of the page's text
@@ -216,6 +225,8 @@ private:
     void drawOverlays(ImDrawList* dl, ImVec2 origin, ImVec2 size);
     void drawScrollbar(ImVec2 pos, ImVec2 size);
     void uploadResults();
+    void cancelTileRequests();
+    TileCache::iterator eraseTexture(TileCache::iterator it);
     void requestTiles();
     void takeInfo();
     void takeFind();
@@ -254,9 +265,10 @@ private:
     ViewMode mMode;
     int mOverviewColumns = 4;
     ZoomMode mZoomMode = ZoomMode::FitWidth;
-    std::map<TileKey, Tex> mTiles;
+    TileCache mTiles;
     std::deque<RenderWorker::Result> mPending; // taken, not uploaded yet
     size_t mBytes = 0;
+    int mLastDocumentFrame = -1;
     uint64_t mFrame = 0;
     std::vector<TileKey> mLastWanted;
     std::pair<int, int> mPreviews{0, -1}; // asked for by a panel this frame

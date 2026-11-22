@@ -54,6 +54,7 @@ bool safeUri(const std::string& uri)
 
 constexpr double kWatchEvery = 1.0; // seconds between looks at open files
 constexpr double kSettle = 0.3; // a changed file must stay the same this long
+constexpr size_t kInactiveTextureBudget = 128u << 20;
 
 }
 
@@ -664,11 +665,14 @@ App::Tab* App::drawTabs()
     }
     ImGui::EndTabBar();
     mSelect = 0;
-    // a tab sent to the back gives its textures up
     uint64_t shownId = shown ? shown->id : 0;
     if (shownId != mActive) {
-        for (auto& t : mTabs)
-            if (t->id == mActive) t->viewer->releaseTextures();
+        std::vector<Viewer*> inactive;
+        for (auto& t : mTabs) {
+            if (t->id == mActive) t->viewer->suspendRendering();
+            if (t->id != shownId) inactive.push_back(t->viewer.get());
+        }
+        Viewer::trimInactiveCaches(inactive, kInactiveTextureBudget);
         mActive = shownId;
     }
     // close() keeps the tab alive through the current frame in mDead.

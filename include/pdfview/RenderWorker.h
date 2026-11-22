@@ -58,6 +58,8 @@ public:
     void want(std::vector<TileKey> keys);
     // the tiles finished since the last call
     std::vector<Result> take();
+    // Cancels tile requests and discards results that have not been taken.
+    void cancelTiles();
 
     // replaces the pages whose links and text are wanted; they go before
     // tiles

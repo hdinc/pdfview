@@ -47,6 +47,14 @@ std::vector<RenderWorker::Result> RenderWorker::take()
     return out;
 }
 
+void RenderWorker::cancelTiles()
+{
+    std::lock_guard lk(mMutex);
+    mWanted.clear();
+    mDone.clear();
+    mResults.clear();
+}
+
 void RenderWorker::wantInfo(std::vector<int> pages)
 {
     {
@@ -192,7 +200,7 @@ void RenderWorker::run()
             r.key = *k;
             if (!render(*k, r.bitmap, r.error)) r.bitmap = {};
             std::lock_guard lk(mMutex);
-            mResults.push_back(std::move(r));
+            if (mDone.contains(*k)) mResults.push_back(std::move(r));
         } else if (auto* p = std::get_if<int>(&job)) {
             PageInfo info;
             info.page = *p;

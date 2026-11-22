@@ -28,6 +28,11 @@ static constexpr size_t kInfoCache = 200; // pages of links and text kept
 static constexpr int kMaxPanelPreviews = 96;
 static constexpr double kMaxThumbnailSide = 2048;
 
+static bool isThumbnail(const TileKey& key)
+{
+    return key.level == TileKey::kPreview || key.tx == TileKey::kWholePage;
+}
+
 Viewer::Viewer()
     : Viewer(Options{})
 {
@@ -74,38 +79,88 @@ void Viewer::open(const std::string& path, const std::string& password)
         password);
 }
 
-void Viewer::releaseTextures()
+void Viewer::cancelTileRequests()
 {
     mPageScrollTarget.reset();
     mAutoscrolling = false;
+    mPending.clear();
+    mLastWanted.clear();
+    mThumbnailRequests.clear();
+    mPreviews = mLastPreviews = {0, -1};
+    if (mWorker) mWorker->cancelTiles();
+}
+
+Viewer::TileCache::iterator Viewer::eraseTexture(TileCache::iterator it)
+{
+    mBytes -= it->second.bytes();
+    freeTex(it->second);
+    return mTiles.erase(it);
+}
+
+void Viewer::releaseTextures()
+{
+    cancelTileRequests();
     for (auto& [k, t] : mTiles)
         freeTex(t);
     mTiles.clear();
-    mPending.clear();
     mBytes = 0;
-    mLastWanted.clear();
-    mThumbnailRequests.clear();
-    if (mWorker) mWorker->want({});
+    mLastDocumentFrame = -1;
+}
+
+void Viewer::suspendRendering()
+{
+    cancelTileRequests();
+    for (auto it = mTiles.begin(); it != mTiles.end();) {
+        if (isThumbnail(it->first) || (it->second.id && it->second.drawnInDocument == mLastDocumentFrame)) ++it;
+        else it = eraseTexture(it);
+    }
+}
+
+void Viewer::trimInactiveCaches(std::span<Viewer* const> inactive, size_t budget)
+{
+    struct Entry {
+        Viewer* viewer;
+        TileCache::iterator texture;
+    };
+    size_t bytes = 0;
+    std::vector<Entry> entries;
+    for (Viewer* viewer : inactive) {
+        for (auto it = viewer->mTiles.begin(); it != viewer->mTiles.end(); ++it) {
+            if (it->second.id) {
+                bytes += it->second.bytes();
+                entries.push_back({viewer, it});
+            }
+        }
+    }
+    if (bytes <= budget) return;
+    std::stable_sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) {
+        const Tex& left = a.texture->second;
+        const Tex& right = b.texture->second;
+        bool leftVisible = left.drawnInDocument >= 0 && left.drawnInDocument == a.viewer->mLastDocumentFrame;
+        bool rightVisible = right.drawnInDocument >= 0 && right.drawnInDocument == b.viewer->mLastDocumentFrame;
+        if (leftVisible != rightVisible) return leftVisible < rightVisible;
+        int leftDrawn = std::max(left.drawnInPanel, left.drawnInDocument);
+        int rightDrawn = std::max(right.drawnInPanel, right.drawnInDocument);
+        if (leftDrawn != rightDrawn) return leftDrawn < rightDrawn;
+        return left.used < right.used;
+    });
+    for (const auto& entry : entries) {
+        bytes -= entry.texture->second.bytes();
+        entry.viewer->eraseTexture(entry.texture);
+        if (bytes <= budget) break;
+    }
 }
 
 void Viewer::close()
 {
     mOutlinePin = {};
     mWorker.reset(); // joins the thread before the textures go
-    for (auto& [k, t] : mTiles)
-        freeTex(t);
-    mTiles.clear();
-    mPending.clear();
-    mBytes = 0;
-    mLastWanted.clear();
-    mThumbnailRequests.clear();
+    releaseTextures();
     mLaidOut = false;
     mLayout = {};
     mView = {};
     mSettling = false;
     mFlipPush = 0;
-    mPageScrollTarget.reset();
-    mAutoscrolling = false;
     mInfo.clear();
     mLastInfoWanted.clear();
     mInfoNeed.clear();
@@ -959,8 +1014,7 @@ ImTextureID Viewer::previewTexture(int page, int& w, int& h)
         mPreviews = {std::min(mPreviews.first, page), std::max(mPreviews.second, page)};
     auto it = mTiles.find({page, TileKey::kPreview, 0, 0});
     if (it == mTiles.end() || !it->second.id) return 0;
-    it->second.used = mFrame;
-    it->second.panelFrame = ImGui::GetFrameCount();
+    it->second.used = it->second.drawnInPanel = ImGui::GetFrameCount();
     w = it->second.w;
     h = it->second.h;
     return static_cast<ImTextureID>(it->second.id);
@@ -991,8 +1045,7 @@ ImTextureID Viewer::pageTexture(int page, double pixelWidth, int& w, int& h)
         && std::find(mThumbnailRequests.begin(), mThumbnailRequests.end(), key) == mThumbnailRequests.end())
         mThumbnailRequests.push_back(key);
     if (!best) return previewTexture(page, w, h);
-    best->used = mFrame;
-    best->panelFrame = ImGui::GetFrameCount();
+    best->used = best->drawnInPanel = ImGui::GetFrameCount();
     w = best->w;
     h = best->h;
     return static_cast<ImTextureID>(best->id);
@@ -1023,7 +1076,7 @@ void Viewer::uploadResults()
         RenderWorker::Result r = std::move(mPending.front());
         mPending.pop_front();
         Tex t;
-        t.used = mFrame;
+        t.used = ImGui::GetFrameCount();
         if (!r.bitmap.bgra.empty()) {
             GLuint id = 0;
             glGenTextures(1, &id);
@@ -1038,12 +1091,12 @@ void Viewer::uploadResults()
             t.id = id;
             t.w = r.bitmap.w;
             t.h = r.bitmap.h;
-            mBytes += static_cast<size_t>(t.w) * t.h * 4;
+            mBytes += t.bytes();
             n++;
         }
         auto [it, inserted] = mTiles.try_emplace(r.key, t);
         if (!inserted) { // rendered twice; keep the new one
-            mBytes -= static_cast<size_t>(it->second.w) * it->second.h * 4;
+            mBytes -= it->second.bytes();
             freeTex(it->second);
             it->second = t;
         }
@@ -1053,10 +1106,11 @@ void Viewer::uploadResults()
 void Viewer::requestTiles()
 {
     std::vector<TileKey> want;
+    int frame = ImGui::GetFrameCount();
     auto add = [&](const TileKey& k) {
         auto it = mTiles.find(k);
         if (it != mTiles.end()) {
-            it->second.used = mFrame;
+            it->second.used = frame;
             return;
         }
         // rendered, waiting for its upload
@@ -1102,7 +1156,7 @@ void Viewer::requestTiles()
     // mark what is on screen as used, for eviction
     for (int i = a; i <= b; i++)
         for (auto it = mTiles.lower_bound({i, TileKey::kPreview - 1, 0, 0}); it != mTiles.end() && it->first.page == i; ++it)
-            if (it->first.tx != TileKey::kWholePage) it->second.used = mFrame;
+            if (it->first.tx != TileKey::kWholePage) it->second.used = frame;
     if (want != mLastWanted) {
         mLastWanted = want;
         mWorker->want(std::move(want));
@@ -1112,17 +1166,14 @@ void Viewer::requestTiles()
 void Viewer::evict()
 {
     if (mBytes <= mOpt.textureBudget) return;
-    std::vector<std::pair<uint64_t, TileKey>> order;
-    int panelFrame = ImGui::GetFrameCount();
+    std::vector<std::pair<int, TileKey>> order;
+    int frame = ImGui::GetFrameCount();
     for (const auto& [k, t] : mTiles)
-        if (t.used < mFrame && t.panelFrame != panelFrame) order.push_back({t.used, k});
+        if (t.used < frame) order.push_back({t.used, k});
     std::sort(order.begin(), order.end());
     for (const auto& [used, k] : order) {
         if (mBytes <= mOpt.textureBudget * 3 / 4) break;
-        auto it = mTiles.find(k);
-        mBytes -= static_cast<size_t>(it->second.w) * it->second.h * 4;
-        freeTex(it->second);
-        mTiles.erase(it);
+        eraseTexture(mTiles.find(k));
     }
 }
 
@@ -1406,7 +1457,9 @@ void Viewer::drawToolbar()
 
 void Viewer::drawPages(ImDrawList* dl, ImVec2 origin, ImVec2 size)
 {
+    mLastDocumentFrame = ImGui::GetFrameCount();
     dl->PushClipRect(origin, {origin.x + size.x, origin.y + size.y}, true);
+    ImVec2 clipMin = dl->GetClipRectMin(), clipMax = dl->GetClipRectMax();
     dl->AddRectFilled(origin, {origin.x + size.x, origin.y + size.y}, background());
     auto toScreenDoc = [&](double dx, double dy) {
         return ImVec2(static_cast<float>(std::floor(origin.x + (dx - mView.x) * mView.zoom)), static_cast<float>(std::floor(origin.y + (dy - mView.y) * mView.zoom)));
@@ -1424,7 +1477,7 @@ void Viewer::drawPages(ImDrawList* dl, ImVec2 origin, ImVec2 size)
         for (int pass = 0; pass < 3; pass++)
             for (auto it = it0; it != mTiles.end() && it->first.page == i; ++it) {
                 const TileKey& k = it->first;
-                const Tex& t = it->second;
+                Tex& t = it->second;
                 if (!t.id || k.tx == TileKey::kWholePage) continue;
                 bool preview = k.level == TileKey::kPreview;
                 if (pass != (preview ? 0 : k.level == mLevel ? 2 : 1)) continue;
@@ -1433,6 +1486,8 @@ void Viewer::drawPages(ImDrawList* dl, ImVec2 origin, ImVec2 size)
                 double dx0 = preview ? px : px + k.tx * ts / s, dy0 = preview ? py : py + k.ty * ts / s;
                 double dx1 = dx0 + t.w / s, dy1 = dy0 + t.h / s;
                 ImVec2 q0 = toScreenDoc(dx0, dy0), q1 = toScreenDoc(std::min(dx1, px + p.w), std::min(dy1, py + p.h));
+                if (q0.x >= clipMax.x || q0.y >= clipMax.y || q1.x <= clipMin.x || q1.y <= clipMin.y) continue;
+                t.drawnInDocument = mLastDocumentFrame;
                 // the last row and column of a tile may be part pixels of
                 // the page edge: map exactly the drawn part
                 float u1 = static_cast<float>((std::min(dx1, px + p.w) - dx0) * s / t.w);

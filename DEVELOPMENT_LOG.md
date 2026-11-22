@@ -544,3 +544,27 @@
   plain wheel scrolling, the top-thumbnail anchor, and saving the target size.
 - Thumbnail borders and dragging were committed separately as d1f28a3 and d4746d6.
   The Ctrl+wheel fix remains uncommitted for review. Both original stashes remain intact.
+
+## 2026-11-22 21:46 +03:00 — Keep thumbnail textures warm across tab switches
+
+- Deactivating a tab cancels tile work and drops document tiles while retaining preview and
+  whole-page thumbnail textures. Inactive tabs share a 128 MiB GPU budget. Trimming removes
+  undrawn and least recently displayed textures first. Closing or reloading frees the old cache.
+- Rebuilt build/bin/pdfview-app.exe with UCRT64. All six CTest targets passed. A Windows OpenGL
+  check verified texture reuse on return, document tile release, cross-tab eviction with a
+  reduced test budget, re-rendering on demand, and invalidation on close and reload. The
+  worker check verified cancellation of an in-flight tile and subsequent reuse of the worker.
+- The Ctrl+wheel fix is committed as b638c15. Thumbnail caching is uncommitted and both
+  original stashes remain intact.
+
+## 2026-11-22 22:01 +03:00 — Prioritize visible document pages across tab switches
+
+- The initial cache change kept thumbnails while discarding the sharp tiles used in the
+  viewport. Deactivation now retains the textures drawn in the last viewport and frees
+  off-screen document tiles. The shared 128 MiB budget evicts thumbnail-only textures
+  first and then the oldest visible textures under pressure.
+- Rebuilt build/bin/pdfview-app.exe with UCRT64. All six CTest targets passed. The Windows
+  OpenGL check switched between three tabs and verified that both visible pages used the
+  same sharp texture IDs on return, with no new requests for those tiles. A reduced test
+  budget verified eviction priority. Close, reload, and tile cancellation also passed.
+- The revised cache fix remains uncommitted. Both original stashes remain intact.
