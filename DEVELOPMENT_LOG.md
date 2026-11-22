@@ -492,3 +492,13 @@
   OpenGL app check verified width and centering at sidebar widths of 150, 200, and 280 at scale
   1, and checked tooltips, clicks, action-driven selection, and restoring the selected tab.
 - The fix remains uncommitted for review. Both stashes remain intact.
+
+## 2026-11-22 19:48 +03:00 — Remove the gaps around the Contents highlight
+
+- Zeroed vertical cell padding in the Contents table so the current and context-menu
+  highlights reach both row edges.
+- Built build/bin/pdfview-app.exe with UCRT64. All six CTest targets passed. Windows OpenGL
+  checks verified row coverage for a truncated bold title and a context menu opened from
+  the page-number column. Coverage remained flush after a scale change. Tree guides and
+  the expand and collapse commands also passed.
+- The last fix in the review batch is uncommitted. Both original stashes remain intact.

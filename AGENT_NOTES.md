@@ -66,6 +66,7 @@ does no file I/O of its own and launches no processes.
 - Contents uses native tree lines and truncates titles to fit the sidebar.
 - Contents keeps the clicked heading highlighted at its landing position and follows the viewport when scrolling resumes.
 - Contents draws the current title in the UI font's bold face when available.
+- Contents rows use zero vertical cell padding so the highlight reaches both row edges.
 - The Contents context menu expands and collapses branches and highlights its target row.
 - Annotations are out of scope; documents open read-only.
 
@@ -73,9 +74,6 @@ does no file I/O of its own and launches no processes.
 - [doc/plans/](doc/plans/): implementation plans, dated.
 
 ## Current work
-- The next batch item after approval is removing the gaps above and below the highlighted Contents row.
-  The original batch is saved in the pdfview and Hd stashes named `Previous viewer changes for individual review`.
-
 [doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md).
 - All phases are written and tested on Windows, including after merging upstream Hd's themes and fonts.
 - Committed and pushed to pdfview `main` (b5dbca4) and Hd `master` (41b19a8).

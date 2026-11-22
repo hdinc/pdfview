@@ -86,6 +86,7 @@ void OutlinePanel::draw(Viewer& v, ImFont* boldFont)
 
     float labelW = ImGui::CalcTextSize("00000").x;
     ImGui::PushStyleVar(ImGuiStyleVar_TreeLinesSize, std::max(1.0f, ImGui::GetStyle().TreeLinesSize));
+    ImGui::PushStyleVarY(ImGuiStyleVar_CellPadding, 0);
     if (ImGui::BeginTable("##outline", 2, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersOuter, ImGui::GetContentRegionAvail())) {
         ImGui::TableSetupColumn("title", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn("page", ImGuiTableColumnFlags_WidthFixed, labelW);
@@ -184,7 +185,7 @@ void OutlinePanel::draw(Viewer& v, ImFont* boldFont)
         }
         ImGui::EndTable();
     }
-    ImGui::PopStyleVar();
+    ImGui::PopStyleVar(2);
     ImGui::PopID();
 }
 
