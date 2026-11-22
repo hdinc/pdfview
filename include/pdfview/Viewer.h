@@ -41,6 +41,8 @@ public:
         // a link to a URI was clicked; without it such links do nothing.
         // The host decides whether and how to open it.
         std::function<void(const std::string&)> onOpenUri;
+        // Draws menu items for the right-clicked page. An empty callback uses the viewer's menu.
+        std::function<void(Viewer&, int page)> pageMenu;
     };
 
     Viewer();
@@ -92,6 +94,8 @@ public:
     enum class ZoomMode { Free, FitWidth, FitPage };
     ZoomMode zoomMode() const { return mZoomMode; }
     void fitWidth();
+    // Fit the selected page or spread, restoring the normal layout from Overview.
+    void fitWidthAtPage(int page);
     void fitPage();
     ViewMode viewMode() const { return mMode; }
     void setViewMode(ViewMode m);
@@ -215,8 +219,10 @@ private:
 
     void startLayout();
     void relayout(ViewMode m);
+    void leaveOverview();
     void applyZoomMode();
     void handleMouse(ImVec2 origin, bool hovered, bool active);
+    void drawPageMenu();
     void updatePageScroll();
     void updateAutoscroll();
     void drawAutoscrollMarker(ImDrawList* dl, ImVec2 origin, ImVec2 size) const;
@@ -286,6 +292,7 @@ private:
     double mPageScrollStart = 0;
     double mPageScrollElapsed = 0;
     bool mAutoscrolling = false;
+    int mMenuPage = -1;
     ImVec2 mAutoscrollOrigin{};
     double mAutoscrollEdgeTravel = 0; // screen pixels accumulated at a page edge
 

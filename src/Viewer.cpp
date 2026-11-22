@@ -162,6 +162,7 @@ void Viewer::close()
     mView = {};
     mSettling = false;
     mFlipPush = 0;
+    mMenuPage = -1;
     mInfo.clear();
     mLastInfoWanted.clear();
     mInfoNeed.clear();
@@ -266,6 +267,17 @@ void Viewer::fitWidth()
     applyZoomMode();
 }
 
+void Viewer::fitWidthAtPage(int page)
+{
+    if (!mLaidOut || page < 0 || page >= pageCount()) return;
+    bool jump = mMode.columns > 2 || page != currentPage();
+    if (jump) mHistory.push(here());
+    if (mMode.columns > 2) leaveOverview();
+    mZoomMode = ZoomMode::FitWidth;
+    zoomAround(mView.fitWidth(mLayout, page), mView.w / 2, mView.h / 2);
+    if (jump) goToPage(page, false);
+}
+
 void Viewer::fitPage()
 {
     mZoomMode = ZoomMode::FitPage;
@@ -293,6 +305,13 @@ void Viewer::setOverviewColumns(int n)
         m.columns = mOverviewColumns;
         relayout(m);
     }
+}
+
+void Viewer::leaveOverview()
+{
+    ViewMode mode = mPrevMode;
+    mode.continuous = mMode.continuous;
+    setViewMode(mode);
 }
 
 void Viewer::relayout(ViewMode m)
@@ -1234,6 +1253,11 @@ void Viewer::handleMouse(ImVec2 origin, bool hovered, bool active)
     int page = -1;
     double px = 0, py = 0;
     bool onPage = (hovered || active) && pageAtScreen(sx, sy, page, px, py);
+    if (hovered && !active && onPage && ImGui::IsMouseReleased(ImGuiMouseButton_Right)) {
+        mPageScrollTarget.reset();
+        mMenuPage = page;
+        ImGui::OpenPopup("##page-menu");
+    }
     mHoverPage = -1;
     mHoverLink = -1;
     if (!mAutoscrolling && !stopClick && hovered && onPage && !(mPress.on && mPress.dragged)) {
@@ -1348,6 +1372,22 @@ void Viewer::handleMouse(ImVec2 origin, bool hovered, bool active)
             ImGui::SetTooltip("Go to page %s", pageLabel(l.dest.page).c_str());
     }
     mView.clamp(mLayout);
+}
+
+void Viewer::drawPageMenu()
+{
+    if (!ImGui::BeginPopup("##page-menu")) return;
+    if (mMenuPage < 0 || mMenuPage >= pageCount()) {
+        ImGui::CloseCurrentPopup();
+    } else if (mOpt.pageMenu) {
+        mOpt.pageMenu(*this, mMenuPage);
+    } else {
+        ImGui::SeparatorText(("Page " + pageLabel(mMenuPage)).c_str());
+        if (ImGui::MenuItem("Copy", nullptr, false, hasSelection())) copy();
+        if (ImGui::MenuItem("Fit Width")) fitWidthAtPage(mMenuPage);
+        if (ImGui::MenuItem("Fit Page")) fitPage();
+    }
+    ImGui::EndPopup();
 }
 
 void Viewer::updatePageScroll()
@@ -1669,6 +1709,7 @@ void Viewer::draw(const char* id, ImVec2 size)
         ImGui::SetItemKeyOwner(ImGuiKey_MouseWheelX);
     }
     handleMouse(origin, hovered, active);
+    drawPageMenu();
     updateAutoscroll();
     updatePageScroll();
     if (mAutoscrolling && hovered)
@@ -1753,11 +1794,9 @@ void Viewer::registerActions(Actions& acts, std::function<Viewer*()> current)
     add("view.facing_first", "Facing Pages (Center First Page)", "View Mode", "", "", [](Viewer& v) { v.setViewMode({2, true, v.viewMode().continuous}); }).checked = mode(2, true);
     add("view.overview", "Overview", "View Mode", "O", "", [](Viewer& v) {
         ViewMode m = v.viewMode();
-        if (m.columns > 2) {
-            ViewMode p = v.mPrevMode;
-            p.continuous = m.continuous;
-            v.setViewMode(p); // toggles back
-        } else
+        if (m.columns > 2)
+            v.leaveOverview();
+        else
             v.setViewMode({v.overviewColumns(), false, m.continuous});
     }).checked = mode(3, false);
     add("view.continuous", "Continuous", "View Mode", "C", "", [](Viewer& v) {

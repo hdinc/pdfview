@@ -43,6 +43,10 @@ private:
         uintmax_t size = 0;
         double changedAt = -1; // when a change was seen, waiting for it to settle
         char password[128] = "";
+        struct {
+            pdfview::Dest target;
+            pdfview::Dest landing;
+        } bookmarkJump;
     };
 
     void addActions();
@@ -63,13 +67,17 @@ private:
     void drawWorkspace();
     Tab* drawTabs();
     void drawSidebar(Tab& t, float width, float splitterWidth);
+    void drawPageMenu(Tab& t, int page);
+    void addBookmark(Tab& t, pdfview::Dest dest);
+    const Bookmark* adjacentBookmark(const Tab& t, int dir) const;
+    void openBookmark(Tab& t, const Bookmark& bookmark);
     void drawBookmarks(Tab& t);
     void drawLocked(Tab& t);
     void drawDialogs();
     void drawLookMenu();
     void drawFontsWindow();
     void applyFonts();
-    void menuItem(const char* id);
+    void menuItem(const char* id, const char* icon = nullptr);
     std::string tabLabel(const Tab& t) const;
 
     Hd::Window& mWindow;

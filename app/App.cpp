@@ -162,6 +162,7 @@ void App::openOne(const std::string& file, bool select)
     o.toolbar = false;
     o.shortcuts = false;
     o.onOpenUri = [this](const std::string& uri) { mAskUri = uri; };
+    o.pageMenu = [this, tab = t.get()](Viewer&, int page) { drawPageMenu(*tab, page); };
     t->viewer = std::make_unique<Viewer>(o);
     t->viewer->setWake([] { glfwPostEmptyEvent(); });
     t->viewer->setOverviewColumns(mSettings.overviewColumns);
@@ -175,6 +176,7 @@ void App::start(Tab& t, const std::string& password)
 {
     stamp(t.path, t.mtime, t.size);
     t.changedAt = -1;
+    t.bookmarkJump = {};
     bool known = mSettings.files.count(t.path) > 0;
     FileState& f = mSettings.file(t.path);
     t.viewer->open(t.path, password);
@@ -288,25 +290,27 @@ void App::addActions()
     mActions.add("bookmark.add", "Add Bookmark", "Bookmarks", "Ctrl+B", "", [this] {
         Tab* t = active();
         if (!t || t->viewer->state() != Viewer::State::Ready) return;
-        pdfview::Dest d = t->viewer->position();
-        auto& bms = mSettings.files[t->path].bookmarks;
-        bms.push_back({d.page, d.y, "Page " + t->viewer->pageLabel(d.page)});
-        std::stable_sort(bms.begin(), bms.end(), [](const Bookmark& a, const Bookmark& b) { return a.page != b.page ? a.page < b.page : a.y < b.y; });
-        mSettings.sidebar = true;
-        mSettings.sidebarTab = 2;
-        mSideForce = true;
+        addBookmark(*t, t->viewer->position());
     }).enabled = has;
+    for (int dir : {-1, 1}) {
+        bool previous = dir < 0;
+        mActions.add(previous ? "bookmark.prev" : "bookmark.next",
+                     previous ? "Previous Bookmark" : "Next Bookmark", "Bookmarks", "", "", [this, dir] {
+            if (Tab* t = active())
+                if (const Bookmark* b = adjacentBookmark(*t, dir)) openBookmark(*t, *b);
+        }).enabled = [this, dir] { Tab* t = active(); return t && adjacentBookmark(*t, dir); };
+    }
     mActions.add("settings.shortcuts", "Configure Keyboard Shortcuts...", "Settings", "Ctrl+Alt+Comma", "", [this] { mShortcutsOpen = true; });
 }
 
-void App::menuItem(const char* id)
+void App::menuItem(const char* id, const char* icon)
 {
     pdfview::Action* a = mActions.find(id);
     if (!a) return;
     bool enabled = !a->enabled || a->enabled();
     bool checked = a->checked && a->checked();
     std::string keys = mActions.keysOf(id);
-    if (ImGui::MenuItem(a->name.c_str(), keys.empty() ? nullptr : keys.c_str(), checked, enabled) && a->run) a->run();
+    if (ImGui::MenuItemEx(a->name.c_str(), icon, keys.empty() ? nullptr : keys.c_str(), checked, enabled) && a->run) a->run();
 }
 
 bool App::needsFrames() const
@@ -414,7 +418,7 @@ void App::drawMenus()
         if (t && !mSettings.files[t->path].bookmarks.empty()) {
             ImGui::Separator();
             for (const auto& b : mSettings.files[t->path].bookmarks)
-                if (ImGui::MenuItem(b.title.c_str(), t->viewer->pageLabel(b.page).c_str())) t->viewer->goTo({b.page, b.y});
+                if (ImGui::MenuItem(b.title.c_str(), t->viewer->pageLabel(b.page).c_str())) openBookmark(*t, b);
         }
         ImGui::EndMenu();
     }
@@ -731,6 +735,57 @@ void App::drawSidebar(Tab& t, float width, float splitterWidth)
     if (ImGui::IsItemActive()) mSettings.sidebarWidth = std::max(150.0f, (width + ImGui::GetIO().MouseDelta.x) / sc);
 }
 
+void App::drawPageMenu(Tab& t, int page)
+{
+    Viewer& v = *t.viewer;
+    ImGui::SeparatorText(("Page " + v.pageLabel(page)).c_str());
+    if (v.hasSelection() && ImGui::MenuItemEx("Copy", Hd::Icon::copy)) v.copy();
+    if (ImGui::MenuItemEx("Add Bookmark", Icon::bookmark)) addBookmark(t, {page, -1});
+    if (ImGui::MenuItemEx("Fit Width", Hd::Icon::fit)) v.fitWidthAtPage(page);
+    menuItem("bookmark.prev", Icon::up);
+    menuItem("bookmark.next", Icon::down);
+}
+
+void App::addBookmark(Tab& t, pdfview::Dest dest)
+{
+    if (dest.page < 0 || dest.page >= t.viewer->pageCount()) return;
+    auto& bookmarks = mSettings.files[t.path].bookmarks;
+    bookmarks.push_back({dest.page, dest.y, "Page " + t.viewer->pageLabel(dest.page)});
+    std::stable_sort(bookmarks.begin(), bookmarks.end(), [](const Bookmark& a, const Bookmark& b) {
+        return a.page != b.page ? a.page < b.page : a.y < b.y;
+    });
+    mSettings.sidebar = true;
+    mSettings.sidebarTab = 2;
+    mSideForce = true;
+}
+
+const Bookmark* App::adjacentBookmark(const Tab& t, int dir) const
+{
+    auto file = mSettings.files.find(t.path);
+    if (file == mSettings.files.end() || t.viewer->state() != Viewer::State::Ready) return nullptr;
+    auto here = t.viewer->position();
+    // Jumps can land just above the bookmark or be clamped by the end of the document.
+    if (t.bookmarkJump.target.valid() && here.page == t.bookmarkJump.landing.page && here.y == t.bookmarkJump.landing.y)
+        here = t.bookmarkJump.target;
+    auto location = [](int page, double y) { return std::pair{page, std::max(y, 0.0)}; };
+    const auto current = location(here.page, here.y);
+    const Bookmark* best = nullptr;
+    for (const auto& b : file->second.bookmarks) {
+        if (b.page < 0 || b.page >= t.viewer->pageCount()) continue;
+        auto at = location(b.page, b.y);
+        if (dir > 0 && at > current) return &b;
+        if (dir < 0 && at < current) best = &b;
+    }
+    return best;
+}
+
+void App::openBookmark(Tab& t, const Bookmark& bookmark)
+{
+    pdfview::Dest dest{bookmark.page, bookmark.y};
+    t.viewer->goTo(dest);
+    t.bookmarkJump = {dest, t.viewer->position()};
+}
+
 void App::drawBookmarks(Tab& t)
 {
     Viewer& v = *t.viewer;
@@ -768,7 +823,7 @@ void App::drawBookmarks(Tab& t)
                         mRenaming = i;
                         snprintf(mRenameBuf, sizeof mRenameBuf, "%s", b.title.c_str());
                     } else
-                        v.goTo({b.page, b.y});
+                        openBookmark(t, b);
                 }
                 if (ImGui::BeginPopupContextItem()) {
                     if (ImGui::MenuItem("Rename")) {

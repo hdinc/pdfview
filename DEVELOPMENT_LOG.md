@@ -592,3 +592,36 @@
   and word and line selection in Text Selection mode.
 - The thumbnail filter fix is committed as beed698. Browse mode click handling is
   uncommitted for review, and both original stashes remain intact.
+
+## 2026-11-22 23:06 +03:00 — Add a context menu to document pages
+
+- The app's right-click menu shows the clicked page label and offers Copy, Add Bookmark,
+  Fit Width, Previous Bookmark, and Next Bookmark. Add Bookmark saves the clicked page.
+  Previous and Next follow the current document position and advance through saved offsets
+  even when a jump lands above its bookmark.
+- Fit Width from Overview reopens the clicked page or spread in the previous normal layout,
+  keeping the current continuous setting. The viewer supplies a default menu for hosts
+  and allows them to provide their own items.
+- Rebuilt build/bin/pdfview-app.exe with UCRT64. All six CTest targets passed. A Windows
+  OpenGL check verified the page hit test, single-page and facing layouts, bookmarks and
+  same-page offsets, clipboard copying, and the default widget menu.
+- The Browse click fix is committed as fb22bd1. The page context menu is uncommitted for
+  review. Both original stashes remain intact.
+
+## 2026-11-22 23:18 +03:00 — Style the page menu like the review reference
+
+- Added a rounded, centered page badge, aligned line icons, and spacing based on the reference.
+  The popup follows the active theme, and unavailable bookmark actions are muted. Copy appears
+  only with selected text.
+- Rebuilt build/bin/pdfview-app.exe with UCRT64. All six CTest targets passed. Captured and
+  inspected the Windows OpenGL menu in both light and dark themes. The interaction check
+  passed for bookmarks, Overview Fit Width, and copying selected text.
+- The page menu remains uncommitted for review. Both original stashes remain intact.
+
+## 2026-11-22 23:26 +03:00 — Restore standard styling to the page menu
+
+- Replaced the custom badge, spacing, and drawn icons with the standard ImGui separator
+  and menu items. The actions use existing Font Awesome glyphs, and Copy appears with a selection.
+- Rebuilt build/bin/pdfview-app.exe with UCRT64. All six CTest targets passed. The Windows
+  OpenGL check verified menu rendering and the bookmark, Overview Fit Width, and Copy actions.
+- The page menu remains uncommitted. Both original stashes remain intact.
