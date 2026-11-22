@@ -74,6 +74,9 @@ does no file I/O of its own and launches no processes.
 - [doc/plans/](doc/plans/): implementation plans, dated.
 
 ## Current work
+- [Viewer interaction updates](doc/plans/2026-11-22-viewer-interaction-updates.md) is approved.
+  Next, fill the thumbnail viewport indicator.
+
 [doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md).
 - All phases are written and tested on Windows, including after merging upstream Hd's themes and fonts.
 - Committed and pushed to pdfview `main` (b5dbca4) and Hd `master` (41b19a8).
