@@ -90,6 +90,7 @@ void Viewer::releaseTextures()
 
 void Viewer::close()
 {
+    mOutlinePin = {};
     mWorker.reset(); // joins the thread before the textures go
     for (auto& [k, t] : mTiles)
         freeTex(t);

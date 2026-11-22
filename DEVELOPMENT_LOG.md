@@ -438,3 +438,16 @@
   verified exact landing, rapid taps and held-key repeats, reversal, wheel interruption,
   immediate non-continuous page turns, and middle-button autoscroll.
 - The fix remains uncommitted for review, with both stashes intact.
+
+## 2026-11-22 18:49 +03:00 — Keep the clicked Contents heading highlighted
+
+- Preserve the clicked heading at the position its jump reached. This covers headings with
+  identical or nearby targets and jumps clamped at the document end. When the view scrolls,
+  Contents resumes its position-based highlight.
+- Keep the pin on the Viewer and clear it when closing the document, so each document has its
+  own selection and reloading clears the old outline reference.
+- Built the main build folder with the UCRT64 tools. All six CTest targets passed. A Windows
+  OpenGL app check clicked headings with identical and nearby targets, checked wheel-based
+  tracking and a clamped jump, and verified that reopening clears the pin.
+- The review executable is build/bin/pdfview-app.exe. The fix is uncommitted and both stashes
+  remain intact.

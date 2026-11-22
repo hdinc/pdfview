@@ -182,6 +182,8 @@ public:
     Actions& actions();
 
 private:
+    friend class OutlinePanel;
+
     struct Tex {
         unsigned id = 0; // 0: rendering failed, don't ask again
         int w = 0, h = 0;
@@ -277,6 +279,11 @@ private:
     std::vector<int> mLastInfoWanted;
 
     History mHistory;
+    // The clicked heading remains current at the position its jump reached.
+    struct {
+        const OutlineItem* item = nullptr;
+        double y = 0;
+    } mOutlinePin;
     Tool mTool = Tool::Browse;
     // the mouse press being handled
     struct Press {

@@ -70,7 +70,12 @@ void OutlinePanel::draw(Viewer& v)
     }
     const OutlineItem* current = nullptr;
     Dest at = v.position();
-    findCurrent(items, at.valid() ? at : Dest{v.currentPage(), 0}, current);
+    if (v.mOutlinePin.item && v.mOutlinePin.y == v.mView.y) {
+        current = v.mOutlinePin.item;
+    } else {
+        v.mOutlinePin = {};
+        findCurrent(items, at.valid() ? at : Dest{v.currentPage(), 0}, current);
+    }
     bool scrollToCurrent = current != mLastCurrent;
     mLastCurrent = current;
     // like Okular: all closed, but the way to the current section opens as
@@ -135,7 +140,10 @@ void OutlinePanel::draw(Viewer& v)
                     ImGui::RenderTextEllipsis(ImGui::GetWindowDrawList(), {labelX, origin.y}, {right, origin.y + titleSize.y},
                                               right, title, title + it.title.size(), &titleSize);
                 }
-                if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen() && it.dest.valid()) v.goTo(it.dest);
+                if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen() && it.dest.valid() && v.mLaidOut) {
+                    v.goTo(it.dest);
+                    v.mOutlinePin = {&it, v.mView.y};
+                }
                 if (ImGui::BeginPopupContextItem()) {
                     drawMenu(&it);
                     ImGui::EndPopup();
