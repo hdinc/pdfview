@@ -64,7 +64,7 @@ does no file I/O of its own and launches no processes.
 - Thumbnail filtering is per document and replaces the grid once after a 300 ms debounce.
 - In non-continuous view, one wheel notch at the page edge turns the page.
 - In continuous view, page-scroll shortcuts add 90% of the viewport height to the queued destination and ease out over 600 ms.
-- Middle-click toggles autoscroll. A middle drag autoscrolls until release.
+- Middle-click toggles autoscroll. A middle drag autoscrolls until release. In non-continuous view, autoscroll stays in the current row.
 - Double-click word selection and triple-click line selection are limited to Text Selection mode.
 - The page context menu uses standard ImGui styling and Font Awesome icons. Fit Width leaves Overview for the previous normal layout.
 - The sidebar starts to the left of the document tabs and follows the active document.
@@ -82,7 +82,7 @@ does no file I/O of its own and launches no processes.
 
 ## Current work
 - [Viewer interaction updates](doc/plans/2026-11-22-viewer-interaction-updates.md) is in progress.
-  The page context menu is ready for review. Next, keep non-continuous autoscroll on the current page.
+  Non-continuous autoscroll is ready for review. Next, unify document scroll animations and add a toggle.
 
 [doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md).
 - All phases are written and tested on Windows, including after merging upstream Hd's themes and fonts.

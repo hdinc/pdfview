@@ -1304,7 +1304,6 @@ void Viewer::handleMouse(ImVec2 origin, bool hovered, bool active)
         if (mPress.on && mPress.button == ImGuiMouseButton_Middle) {
             mAutoscrolling = true;
             mAutoscrollOrigin = mPress.at;
-            mAutoscrollEdgeTravel = 0;
         } else if (mPress.on && onPage && mTool == Tool::Text) {
             int clicks = io.MouseClickedCount[ImGuiMouseButton_Left];
             if (clicks >= 2) {
@@ -1427,23 +1426,7 @@ void Viewer::updateAutoscroll()
     double dx = distance(io.MousePos.x - mAutoscrollOrigin.x);
     double dy = distance(io.MousePos.y - mAutoscrollOrigin.y);
     mView.x += dx / mView.zoom;
-    auto [top, bottom] = mView.band(mLayout);
-    double height = mView.h / mView.zoom;
-    bool pushingEdge = !mMode.continuous && dy != 0
-        && (dy > 0 ? mView.y + height >= bottom - 0.5 : mView.y <= top + 0.5);
-    if (pushingEdge) {
-        // A fitted page is always at an edge. Let the pointer speed decide
-        // how long a page stays visible instead of flipping every frame.
-        if (mAutoscrollEdgeTravel * dy < 0) mAutoscrollEdgeTravel = 0;
-        mAutoscrollEdgeTravel += dy;
-        if (std::abs(mAutoscrollEdgeTravel) >= mView.h) {
-            mView.flip(dy > 0 ? 1 : -1, mLayout);
-            mAutoscrollEdgeTravel = 0;
-        }
-    } else {
-        mAutoscrollEdgeTravel = 0;
-        mView.y += dy / mView.zoom;
-    }
+    mView.y += dy / mView.zoom;
     mView.clamp(mLayout);
 }
 

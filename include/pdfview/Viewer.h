@@ -294,7 +294,6 @@ private:
     bool mAutoscrolling = false;
     int mMenuPage = -1;
     ImVec2 mAutoscrollOrigin{};
-    double mAutoscrollEdgeTravel = 0; // screen pixels accumulated at a page edge
 
     // pages' links and text, read on the worker as pages come into view
     std::map<int, Info> mInfo;

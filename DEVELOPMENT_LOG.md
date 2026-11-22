@@ -625,3 +625,14 @@
 - Rebuilt build/bin/pdfview-app.exe with UCRT64. All six CTest targets passed. The Windows
   OpenGL check verified menu rendering and the bookmark, Overview Fit Width, and Copy actions.
 - The page menu remains uncommitted. Both original stashes remain intact.
+
+## 2026-11-22 23:28 +03:00 — Keep non-continuous autoscroll on the current page
+
+- Removed accumulated edge travel and automatic row turns from middle-button autoscroll.
+  The view clamps to the current row in non-continuous mode, and reversing pointer movement
+  scrolls back immediately when there is room to move.
+- Built build/bin/pdfview-app.exe with UCRT64. All six CTest targets passed. Windows OpenGL
+  checks verified both edges of a zoomed page, a fitted page, immediate reversal, continuous
+  autoscroll, the middle-button gestures, and ordinary wheel and Space page turns.
+- The page menu is committed as ede9821. The autoscroll fix is uncommitted for review.
+  Both original stashes remain intact.
