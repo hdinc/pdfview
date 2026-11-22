@@ -502,3 +502,13 @@
   the page-number column. Coverage remained flush after a scale change. Tree guides and
   the expand and collapse commands also passed.
 - The last fix in the review batch is uncommitted. Both original stashes remain intact.
+
+## 2026-11-22 20:34 +03:00 — Fill the thumbnail viewport indicator
+
+- Added a translucent yellow fill using the existing viewport outline's bounds, so each
+  thumbnail shows just the portion of its page visible in the document viewer.
+- The agreed viewer interaction plan is committed as 7e2fd36. This first fix is uncommitted
+  for review, and both original stashes remain intact.
+- Built build/bin/pdfview-app.exe with UCRT64. All six CTest targets passed. A Windows OpenGL
+  app check verified both pages of a fitted spread, the clipped region of a zoomed page
+  during wheel scrolling, and the fill with thumbnail gaps and page numbers disabled.

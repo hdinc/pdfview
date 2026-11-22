@@ -348,8 +348,11 @@ void ThumbnailPanel::draw(Viewer& v)
             if (ImTextureID t = v.pageTexture(p, pixelWidth, tw, th)) dl->AddImage(t, i0, i1);
             Rect vis;
             if (v.visibleRect(p, vis)) {
-                double k2 = imgW / s.w;
-                dl->AddRect({i0.x + static_cast<float>(vis.x0 * k2), i0.y + static_cast<float>(vis.y0 * k2)}, {i0.x + static_cast<float>(vis.x1 * k2), i0.y + static_cast<float>(vis.y1 * k2)}, IM_COL32(230, 200, 0, 255), 0.0f, 0, 2.0f);
+                double scale = imgW / s.w;
+                ImVec2 a{i0.x + static_cast<float>(vis.x0 * scale), i0.y + static_cast<float>(vis.y0 * scale)};
+                ImVec2 b{i0.x + static_cast<float>(vis.x1 * scale), i0.y + static_cast<float>(vis.y1 * scale)};
+                dl->AddRectFilled(a, b, IM_COL32(230, 200, 0, 56));
+                dl->AddRect(a, b, IM_COL32(230, 200, 0, 255), 0.0f, 0, 2.0f);
             }
             if (!spaced && (p == cur || hovered)) {
                 ImU32 color = p == cur ? accent : ImGui::GetColorU32(ImGuiCol_HeaderHovered);

@@ -2,7 +2,7 @@
 
 ## Status
 
-Approved on 2026-11-22. Implementation is pending.
+In progress since 2026-11-22.
 
 ## Goal
 
@@ -22,7 +22,7 @@ Extract the shared scroll motion code into Hd after the document and sidebar bot
 
 ## Steps
 
-- [ ] **Fill the thumbnail viewport indicator.** Add a translucent fill inside the existing outline. Clip the indicator to each thumbnail's visible portion and draw it on every visible page when the viewport spans multiple pages.
+- [x] **Fill the thumbnail viewport indicator.** Add a translucent fill inside the existing outline. Clip the indicator to each thumbnail's visible portion and draw it on every visible page when the viewport spans multiple pages.
 - [ ] **Border thumbnail pages.** Draw a thin, theme-aware border around each thumbnail. Check that adjacent pages remain distinct with gaps and page numbers disabled.
 - [ ] **Let thumbnail drags cross pages.** Capture the drag at the panel level so it survives leaving the starting thumbnail or scrolling it out of view. Convert vertical pointer displacement at the starting thumbnail's scale into movement through document pages in reading order, including when the pointer crosses empty space. Preserve the grab offset when dragging the indicator and keep ordinary clicks as page jumps. Release capture on mouse-up, focus loss, or tab change.
 - [ ] **Change thumbnail columns one step at a time.** One Ctrl+wheel notch changes the column count by exactly one in the existing direction. Accumulate fractional input until it reaches a notch. Keep plain wheel for panel scrolling and preserve the first visible thumbnail's anchor during layout changes.
