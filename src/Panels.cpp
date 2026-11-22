@@ -58,7 +58,7 @@ void searchBox(const char* id, char* buf, size_t n)
 
 // --- outline
 
-void OutlinePanel::draw(Viewer& v)
+void OutlinePanel::draw(Viewer& v, ImFont* boldFont)
 {
     ImGui::PushID(this);
     searchBox("##filter", mFilter, sizeof mFilter);
@@ -120,13 +120,16 @@ void OutlinePanel::draw(Viewer& v)
                 else ImGui::SetNextItemStorageID(storageId(&it));
                 // BeginPopupContextItem uses the tree item's ID for the popup.
                 bool menuOpen = ImGui::IsPopupOpen(ImGui::GetID(&it), ImGuiPopupFlags_None);
-                if (&it == current || menuOpen) f |= ImGuiTreeNodeFlags_Selected;
+                bool isCurrent = &it == current;
+                if (isCurrent || menuOpen) f |= ImGuiTreeNodeFlags_Selected;
                 if (filtering)
                     ImGui::SetNextItemOpen(true);
                 else if (scrollToCurrent && onPath(&it))
                     ImGui::SetNextItemOpen(true);
                 else
                     ImGui::SetNextItemOpen(false, ImGuiCond_Once);
+                bool useBoldFont = isCurrent && boldFont;
+                if (useBoldFont) ImGui::PushFont(boldFont, 0.0f);
                 ImVec2 origin = ImGui::GetCursorScreenPos();
                 float labelX = origin.x + ImGui::GetTreeNodeToLabelSpacing();
                 float right = origin.x + ImGui::GetContentRegionAvail().x;
@@ -140,6 +143,7 @@ void OutlinePanel::draw(Viewer& v)
                     ImGui::RenderTextEllipsis(ImGui::GetWindowDrawList(), {labelX, origin.y}, {right, origin.y + titleSize.y},
                                               right, title, title + it.title.size(), &titleSize);
                 }
+                if (useBoldFont) ImGui::PopFont();
                 if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen() && it.dest.valid() && v.mLaidOut) {
                     v.goTo(it.dest);
                     v.mOutlinePin = {&it, v.mView.y};
@@ -149,7 +153,7 @@ void OutlinePanel::draw(Viewer& v)
                     ImGui::EndPopup();
                 }
                 if (truncated) ImGui::SetItemTooltip("%s", it.title.c_str());
-                if (&it == current && scrollToCurrent && !ImGui::IsItemVisible()) ImGui::SetScrollHereY(0.3f);
+                if (isCurrent && scrollToCurrent && !ImGui::IsItemVisible()) ImGui::SetScrollHereY(0.3f);
                 ImGui::TableNextColumn();
                 if (it.dest.valid()) {
                     std::string l = v.pageLabel(it.dest.page);

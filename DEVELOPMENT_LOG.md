@@ -451,3 +451,25 @@
   tracking and a clamped jump, and verified that reopening clears the pin.
 - The review executable is build/bin/pdfview-app.exe. The fix is uncommitted and both stashes
   remain intact.
+
+## 2026-11-22 19:24 +03:00 — Show the current Contents title in bold
+
+- Only the current title uses the UI family's bold face. The title is measured with the same
+  face for truncation. If a bold face is unavailable, the title gets a one-pixel overprint.
+  Page labels stay regular.
+- Hd reloads its optional bold face with the other UI fonts. The app passes the current
+  face to the Contents panel each frame.
+- Built build/bin/pdfview-app.exe with UCRT64. All six CTest targets passed. The Windows OpenGL
+  check verified title and page-label glyphs, truncated titles, a live UI font change, simulated
+  bold, and Contents highlight tracking. Platform-specific font discovery outside Windows was
+  untested.
+- The fix is uncommitted in pdfview and Hd. Both stashes remain intact.
+
+## 2026-11-22 19:30 +03:00 — Use regular Contents text when bold is unavailable
+
+- Removed the simulated bold overprint. Contents draws the current title once with the regular
+  face when a bold face is unavailable. Real bold and title truncation still work.
+- Rebuilt build/bin/pdfview-app.exe with UCRT64. All six CTest targets passed. The Windows OpenGL
+  check verified a single regular glyph draw in the fallback and confirmed real bold and live
+  font switching.
+- The bold-title fix remains uncommitted, with both stashes intact.

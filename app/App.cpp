@@ -690,7 +690,7 @@ void App::drawSidebar(Tab& t, float width, float splitterWidth)
                 if (!mSideForce) mSettings.sidebarTab = i;
                 if (t.viewer->state() == Viewer::State::Ready) {
                     if (i == 0) mThumbs.draw(*t.viewer);
-                    if (i == 1) mOutline.draw(*t.viewer);
+                    if (i == 1) mOutline.draw(*t.viewer, mGui.boldFont());
                     if (i == 2) drawBookmarks(t);
                 }
                 ImGui::EndTabItem();

@@ -64,6 +64,7 @@ does no file I/O of its own and launches no processes.
 - The standalone Find bar sits below the document and has its own Options popup.
 - Contents uses native tree lines and truncates titles to fit the sidebar.
 - Contents keeps the clicked heading highlighted at its landing position and follows the viewport when scrolling resumes.
+- Contents draws the current title in the UI font's bold face when available.
 - The Contents context menu expands and collapses branches and highlights its target row.
 - Annotations are out of scope; documents open read-only.
 
@@ -71,7 +72,7 @@ does no file I/O of its own and launches no processes.
 - [doc/plans/](doc/plans/): implementation plans, dated.
 
 ## Current work
-- The next batch item after approval is showing the current Contents title in bold.
+- The next batch item after approval is replacing the sidebar tab names with icons.
   The original batch is saved in the pdfview and Hd stashes named `Previous viewer changes for individual review`.
 
 [doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md).

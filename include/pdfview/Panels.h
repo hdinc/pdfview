@@ -13,8 +13,8 @@ namespace pdfview {
 // entry goes there
 class OutlinePanel {
 public:
-    // fills the rest of the current window
-    void draw(Viewer& v);
+    // Fills the rest of the current window. Pass the current UI bold face if available.
+    void draw(Viewer& v, ImFont* boldFont = nullptr);
 
 private:
     char mFilter[128] = "";
