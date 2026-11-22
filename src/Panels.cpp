@@ -191,8 +191,63 @@ void OutlinePanel::draw(Viewer& v, ImFont* boldFont)
 
 // --- thumbnails
 
+void ThumbnailPanel::updateDrag(Viewer& v)
+{
+    if (!mDrag.id) return;
+    int frame = ImGui::GetFrameCount();
+    if (mLastViewer != &v || mDrag.frame + 1 < frame || ImGui::GetIO().AppFocusLost
+        || v.state() != Viewer::State::Ready || !v.mLaidOut || ImGui::GetActiveID() != mDrag.id) {
+        if (ImGui::GetActiveID() == mDrag.id) ImGui::ClearActiveID();
+        mDrag = {};
+        return;
+    }
+
+    // Keep the press alive even after the original thumbnail is clipped.
+    ImGui::KeepAliveID(mDrag.id);
+    mDrag.frame = frame;
+    if (ImGui::IsMousePosValid() && ImGui::IsMouseDragPastThreshold(ImGuiMouseButton_Left, 3)) {
+        mDrag.moved = true;
+        ImVec2 pointer = ImGui::GetMousePos();
+        double dx = (pointer.x - mDrag.pointer.x) * mDrag.pointsPerPixel;
+        double dy = (pointer.y - mDrag.pointer.y) * mDrag.pointsPerPixel;
+        mDrag.pointer = pointer;
+        if (dx != 0 || dy != 0) {
+            int previousPage = mDrag.page;
+            mDrag.y += dy;
+            // Traverse paper heights in reading order, independent of the thumbnail grid.
+            if (dy > 0) {
+                while (mDrag.page + 1 < v.pageCount() && mDrag.y > v.pageSize(mDrag.page).h) {
+                    mDrag.y -= v.pageSize(mDrag.page).h;
+                    ++mDrag.page;
+                }
+                mDrag.y = std::min(mDrag.y, v.pageSize(mDrag.page).h);
+            } else if (dy < 0) {
+                while (mDrag.page > 0 && mDrag.y < 0) {
+                    --mDrag.page;
+                    mDrag.y += v.pageSize(mDrag.page).h;
+                }
+                mDrag.y = std::max(0.0, mDrag.y);
+            }
+            if (dx != 0 || mDrag.page != previousPage)
+                mDrag.x = std::clamp(mDrag.x + dx, 0.0, v.pageSize(mDrag.page).w);
+            v.centerOn(mDrag.page, mDrag.x, mDrag.y);
+            mLastCurrent = v.currentPage();
+        }
+    }
+    if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+        if (!mDrag.moved && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+            v.goToPage(mDrag.pressedPage);
+            // A thumbnail click leaves the grid's scroll position alone.
+            mLastCurrent = v.currentPage();
+        }
+        ImGui::ClearActiveID();
+        mDrag = {};
+    }
+}
+
 void ThumbnailPanel::draw(Viewer& v)
 {
+    updateDrag(v);
     ImGui::PushID(this);
     searchBox("##filter", mFilter, sizeof mFilter);
     if (ImGui::IsItemEdited()) v.find(mFilter, v.findFlags());
@@ -287,7 +342,7 @@ void ThumbnailPanel::draw(Viewer& v)
     int cur = v.currentPage();
     bool otherDoc = &v != mLastViewer;
     bool resized = cols != mLastCols || cellW != mLastCellWidth || rowPadding != mLastRowPadding;
-    bool follow = (otherDoc || cur != mLastCurrent) && mDragPage < 0;
+    bool follow = (otherDoc || cur != mLastCurrent) && !mDrag.id;
     size_t anchorRow = otherDoc ? rows : rowOf(mAnchorPage);
     bool anchored = resized && !follow && anchorRow < rows;
     if (anchored) {
@@ -349,7 +404,8 @@ void ThumbnailPanel::draw(Viewer& v)
             if (ImTextureID t = v.pageTexture(p, pixelWidth, tw, th)) dl->AddImage(t, i0, i1);
             dl->AddRect(i0, i1, pageBorder);
             Rect vis;
-            if (v.visibleRect(p, vis)) {
+            bool visible = v.visibleRect(p, vis);
+            if (visible) {
                 double scale = imgW / s.w;
                 ImVec2 a{i0.x + static_cast<float>(vis.x0 * scale), i0.y + static_cast<float>(vis.y0 * scale)};
                 ImVec2 b{i0.x + static_cast<float>(vis.x1 * scale), i0.y + static_cast<float>(vis.y1 * scale)};
@@ -369,28 +425,21 @@ void ThumbnailPanel::draw(Viewer& v)
                 ImGui::SetItemTooltip("%s", v.pageLabel(p).c_str());
             }
 
-            // a click goes to the page; a drag moves the view over it
-            auto pagePoint = [&](double& px, double& py) {
-                px = std::clamp((io.MousePos.x - i0.x) / imgW * s.w, 0.0, s.w);
-                py = std::clamp((io.MousePos.y - i0.y) / h * s.h, 0.0, s.h);
-            };
-            if (ImGui::IsItemActivated()) {
-                mDragPage = p;
-                mDragged = false;
-            }
-            if (ImGui::IsItemActive() && mDragPage == p && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 3)) {
-                mDragged = true;
-                double px, py;
-                pagePoint(px, py);
-                v.centerOn(p, px, py);
-            }
-            if (ImGui::IsItemDeactivated() && mDragPage == p) {
-                if (!mDragged) {
-                    v.goToPage(p);
-                    // The click originated in this panel. Keep its scroll position.
-                    mLastCurrent = v.currentPage();
+            if (ImGui::IsItemActivated() && v.mLaidOut) {
+                double pointsPerPixel = s.w / imgW;
+                double x = (io.MousePos.x - i0.x) * pointsPerPixel;
+                double y = (io.MousePos.y - i0.y) * pointsPerPixel;
+                int page = p;
+                if (visible && vis.contains(x, y)) {
+                    // Grab the current viewport, preserving the pointer's offset from its center.
+                    page = cur;
+                    x = v.mView.x + v.mView.w / v.mView.zoom / 2 - v.mLayout.left(page);
+                    y = v.mView.y + v.mView.h / v.mView.zoom / 2 - v.mLayout.top[static_cast<size_t>(page)];
+                } else {
+                    x = std::clamp(x, 0.0, s.w);
+                    y = std::clamp(y, 0.0, s.h);
                 }
-                mDragPage = -1;
+                mDrag = {ImGui::GetItemID(), ImGui::GetFrameCount(), p, page, io.MousePos, pointsPerPixel, x, y};
             }
             if (hovered && !ImGui::IsItemActive()) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
             ImGui::PopID();

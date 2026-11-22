@@ -521,3 +521,15 @@
   check verified page borders in light and dark themes and around adjoining white thumbnails
   with gaps and page numbers disabled.
 - The border fix is uncommitted for review. Both original stashes remain intact.
+
+## 2026-11-22 21:31 +03:00 — Continue thumbnail drags across pages
+
+- Keep the thumbnail press captured by the panel when the pointer crosses a gap, leaves the
+  panel, or the starting thumbnail scrolls out of view. Use the starting thumbnail's scale and
+  the document's page heights to map pointer motion through pages in reading order.
+- Preserve the grab offset inside the viewport indicator. Ordinary clicks still jump to the
+  chosen page and preserve sidebar scroll. Release capture on mouse-up, focus loss, or tab change.
+- Rebuilt build/bin/pdfview-app.exe with UCRT64. All six CTest targets passed. A Windows OpenGL
+  check verified mixed-height pages in a multi-column grid, dragging in both directions with
+  the source thumbnail out of view, non-continuous navigation, ordinary clicks, and cancellation.
+- The drag and thumbnail border fixes are both uncommitted. Both original stashes remain intact.

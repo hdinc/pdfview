@@ -183,6 +183,7 @@ public:
 
 private:
     friend class OutlinePanel;
+    friend class ThumbnailPanel;
 
     struct Tex {
         unsigned id = 0; // 0: rendering failed, don't ask again

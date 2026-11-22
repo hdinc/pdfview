@@ -33,6 +33,8 @@ public:
     bool gaps = true;
 
 private:
+    void updateDrag(Viewer& v);
+
     char mFilter[128] = "";
     int mLastCurrent = -1;
     int mLastCols = 0;
@@ -42,8 +44,17 @@ private:
     const Viewer* mLastViewer = nullptr;
     int mAnchorPage = -1;
     float mAnchorTop = 0; // screen Y of the anchor thumbnail's top edge
-    int mDragPage = -1;
-    bool mDragged = false;
+    struct {
+        ImGuiID id = 0;
+        int frame = -1;
+        int pressedPage = -1;
+        int page = -1;
+        ImVec2 pointer{};
+        double pointsPerPixel = 0;
+        double x = 0;
+        double y = 0;
+        bool moved = false;
+    } mDrag;
 };
 
 // edits an Actions registry's keys: search, a table of actions with their
