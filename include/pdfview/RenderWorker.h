@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <atomic>
 #include <condition_variable>
 #include <functional>
@@ -66,12 +67,11 @@ public:
     void wantInfo(std::vector<int> pages);
     std::vector<PageInfo> takeInfo();
 
-    // searches every page, from page `from` on and around, a page at a time
-    // between tiles; returns the search's number. An empty text stops.
-    unsigned find(std::string utf8, unsigned flags, int from);
-    // results of the current search since the last call, one per page
-    // searched (matches may be empty)
-    std::vector<FindResult> takeFind();
+    enum class FindChannel { Document, Thumbnails };
+    // Searches every page, starting at from. An empty query stops that channel.
+    unsigned find(std::string utf8, unsigned flags, int from, FindChannel channel = FindChannel::Document);
+    // One result per page searched on this channel, including pages without matches.
+    std::vector<FindResult> takeFind(FindChannel channel = FindChannel::Document);
 
     // true while something wanted is still being worked on
     bool busy();
@@ -102,13 +102,15 @@ private:
     std::vector<int> mWantedInfo;
     std::set<int> mInfoDone; // read, not taken yet
     std::vector<PageInfo> mInfo;
-    // the current search
-    unsigned mSearch = 0;
-    std::string mQuery;
-    unsigned mFlags = 0;
-    int mFindNext = 0; // next page to search
-    int mFindLeft = 0; // pages left
-    std::vector<FindResult> mFound;
+    struct Search {
+        unsigned generation = 0;
+        std::string query;
+        unsigned flags = 0;
+        int nextPage = 0;
+        int pagesLeft = 0;
+        std::vector<FindResult> results;
+    };
+    std::array<Search, 2> mSearches;
     bool mBusy = false;
     bool mStop = false;
     std::thread mThread;

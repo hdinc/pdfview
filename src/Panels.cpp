@@ -249,23 +249,26 @@ void ThumbnailPanel::draw(Viewer& v)
 {
     updateDrag(v);
     ImGui::PushID(this);
-    searchBox("##filter", mFilter, sizeof mFilter);
-    if (ImGui::IsItemEdited()) v.find(mFilter, v.findFlags());
+    auto& filter = v.mThumbnailFind;
+    searchBox("##filter", filter.input, sizeof filter.input);
     if (v.state() != Viewer::State::Ready) {
         mColumnWheelRemainder = 0;
         ImGui::PopID();
         return;
     }
-    bool filtering = mFilter[0] && v.findText() == mFilter;
-    if (filtering && v.matchCount() == 0) ImGui::TextDisabled(v.searching() ? "Searching..." : "No pages match.");
+    if (ImGui::IsItemEdited()) v.editThumbnailFind();
+    if (filter.filtered && filter.pages.empty()) ImGui::TextDisabled("No pages match.");
 
     ImGuiIO& io = ImGui::GetIO();
     const ImGuiStyle& st = ImGui::GetStyle();
     // sizes are at scale 1: they follow the UI's scale
     float sc = st.FontScaleDpi > 0 ? st.FontScaleDpi : 1.0f;
-    std::vector<int> pages;
-    for (int p = 0; p < v.pageCount(); p++)
-        if (!filtering || v.pageHasMatches(p)) pages.push_back(p);
+    std::vector<int> allPages;
+    if (!filter.filtered) {
+        allPages.reserve(v.pageCount());
+        for (int p = 0; p < v.pageCount(); ++p) allPages.push_back(p);
+    }
+    const auto& pages = filter.filtered ? filter.pages : allPages;
 
     // Keep this frame's layout consistent when a menu item changes its settings.
     bool spaced = gaps;

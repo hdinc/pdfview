@@ -568,3 +568,17 @@
   same sharp texture IDs on return, with no new requests for those tiles. A reduced test
   budget verified eviction priority. Close, reload, and tile cancellation also passed.
 - The revised cache fix remains uncommitted. Both original stashes remain intact.
+
+## 2026-11-22 22:07 +03:00 — Debounce thumbnail filtering
+
+- Wait 300 ms after the last thumbnail search edit and keep the existing grid until the
+  replacement results are complete. Clearing the field restores all thumbnails immediately.
+  Each document tab retains its own filter.
+- Document Find and thumbnail queries use separate channels on the same render worker.
+  A new thumbnail query invalidates older results without changing the document query or viewport.
+- Built build/bin/pdfview-app.exe with UCRT64. All six CTest targets passed, including coverage
+  for replacing a thumbnail query during document Find. A Windows OpenGL check verified actual
+  typing and clearing, complete results, no-match results, a stable viewport and Find query,
+  and tab switching.
+- The visible-page cache fix is committed as b6532d7. Thumbnail filtering is uncommitted
+  for review, and both stashes remain intact.

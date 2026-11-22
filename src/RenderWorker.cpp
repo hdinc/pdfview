@@ -1,6 +1,7 @@
 #include <pdfview/RenderWorker.h>
 
 #include <algorithm>
+#include <utility>
 #include <variant>
 
 namespace pdfview {
@@ -76,35 +77,34 @@ std::vector<RenderWorker::PageInfo> RenderWorker::takeInfo()
     return out;
 }
 
-unsigned RenderWorker::find(std::string utf8, unsigned flags, int from)
+unsigned RenderWorker::find(std::string utf8, unsigned flags, int from, FindChannel channel)
 {
     unsigned id;
     {
         std::lock_guard lk(mMutex);
-        id = ++mSearch;
-        mQuery = std::move(utf8);
-        mFlags = flags;
-        mFound.clear();
-        int n = static_cast<int>(mSizes.size());
-        mFindLeft = mQuery.empty() || mState != State::Ready ? 0 : n;
-        mFindNext = n > 0 ? std::clamp(from, 0, n - 1) : 0;
+        Search& search = mSearches[static_cast<size_t>(channel)];
+        id = ++search.generation;
+        search.query = std::move(utf8);
+        search.flags = flags;
+        search.results.clear();
+        int n = mState == State::Ready ? static_cast<int>(mSizes.size()) : 0;
+        search.pagesLeft = search.query.empty() ? 0 : n;
+        search.nextPage = n > 0 ? std::clamp(from, 0, n - 1) : 0;
     }
     mCv.notify_all();
     return id;
 }
 
-std::vector<RenderWorker::FindResult> RenderWorker::takeFind()
+std::vector<RenderWorker::FindResult> RenderWorker::takeFind(FindChannel channel)
 {
     std::lock_guard lk(mMutex);
-    std::vector<FindResult> out = std::move(mFound);
-    mFound.clear();
-    return out;
+    return std::exchange(mSearches[static_cast<size_t>(channel)].results, {});
 }
 
 bool RenderWorker::busy()
 {
     std::lock_guard lk(mMutex);
-    if (mBusy || mFindLeft > 0) return true;
+    if (mBusy || std::any_of(mSearches.begin(), mSearches.end(), [](const Search& s) { return s.pagesLeft > 0; })) return true;
     for (const auto& k : mWanted)
         if (!mDone.contains(k)) return true;
     for (int p : mWantedInfo)
@@ -143,17 +143,20 @@ void RenderWorker::run()
         // find() before Ready couldn't know the page count
         std::lock_guard lk(mMutex);
         mState = State::Ready; // publishes the fields above
-        if (!mQuery.empty()) mFindLeft = mDoc->pages();
+        for (auto& search : mSearches)
+            if (!search.query.empty()) search.pagesLeft = mDoc->pages();
     }
     if (mWake) mWake();
 
     struct FindJob {
+        size_t channel;
         unsigned search;
         int page;
         std::string query;
         unsigned flags;
     };
     bool lastWasTile = false;
+    size_t nextSearch = 0;
     for (;;) {
         std::variant<std::monostate, TileKey, int, FindJob> job;
         {
@@ -175,9 +178,14 @@ void RenderWorker::run()
                         break;
                     }
                 // tiles and search pages take turns
-                if (mFindLeft > 0 && (!tile || lastWasTile)) {
-                    job = FindJob{mSearch, mFindNext, mQuery, mFlags};
-                    return true;
+                if (!tile || lastWasTile) {
+                    for (size_t i = 0; i < mSearches.size(); ++i) {
+                        size_t channel = (nextSearch + i) % mSearches.size();
+                        const Search& search = mSearches[channel];
+                        if (search.pagesLeft <= 0) continue;
+                        job = FindJob{channel, search.generation, search.nextPage, search.query, search.flags};
+                        return true;
+                    }
                 }
                 if (tile) {
                     job = *tile;
@@ -188,9 +196,11 @@ void RenderWorker::run()
             if (mStop) return;
             if (auto* p = std::get_if<int>(&job)) mInfoDone.insert(*p);
             if (auto* k = std::get_if<TileKey>(&job)) mDone.insert(*k);
-            if (std::holds_alternative<FindJob>(job)) {
-                mFindNext = (mFindNext + 1) % mDoc->pages();
-                mFindLeft--;
+            if (auto* f = std::get_if<FindJob>(&job)) {
+                Search& search = mSearches[f->channel];
+                search.nextPage = (search.nextPage + 1) % mDoc->pages();
+                --search.pagesLeft;
+                nextSearch = (f->channel + 1) % mSearches.size();
             }
             lastWasTile = std::holds_alternative<TileKey>(job);
             mBusy = true;
@@ -216,8 +226,8 @@ void RenderWorker::run()
             r.page = f->page;
             r.matches = mDoc->find(f->page, f->query, f->flags);
             std::lock_guard lk(mMutex);
-            // a newer search started meanwhile: drop it
-            if (r.search == mSearch) mFound.push_back(std::move(r));
+            Search& search = mSearches[f->channel];
+            if (r.search == search.generation) search.results.push_back(std::move(r));
         }
         if (mWake) mWake();
     }

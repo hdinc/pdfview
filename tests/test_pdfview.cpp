@@ -359,6 +359,28 @@ TEST_CASE("RenderWorker: page info, outline, labels and find")
     }
     CHECK(matches == 3);
 
+    // Replacing the thumbnail query leaves the document search's results intact.
+    constexpr auto thumbnails = RenderWorker::FindChannel::Thumbnails;
+    unsigned document = w.find("world", FindDefault, 0);
+    unsigned obsolete = w.find("world", FindDefault, 0, thumbnails);
+    unsigned latest = w.find("Turned", FindDefault, 0, thumbnails);
+    CHECK(latest != obsolete);
+    REQUIRE(waitFor([&] { return !w.busy(); }));
+    auto documentResults = w.takeFind();
+    auto thumbnailResults = w.takeFind(thumbnails);
+    REQUIRE(documentResults.size() == 3);
+    REQUIRE(thumbnailResults.size() == 3);
+    const size_t documentMatchesByPage[] = {2, 0, 1};
+    for (const auto& r : documentResults) {
+        CHECK(r.search == document);
+        REQUIRE((r.page >= 0 && r.page < 3));
+        CHECK(r.matches.size() == documentMatchesByPage[r.page]);
+    }
+    for (const auto& r : thumbnailResults) {
+        CHECK(r.search == latest);
+        CHECK(r.matches.size() == (r.page == 1 ? 1 : 0));
+    }
+
     // a new search from page 2 goes round: 2, 0, 1
     unsigned s = w.find("Turned", FindDefault, 2);
     found.clear();

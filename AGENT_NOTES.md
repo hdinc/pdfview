@@ -61,6 +61,7 @@ does no file I/O of its own and launches no processes.
 - Thumbnail page borders use the theme's border color, including when gaps and page numbers are hidden.
 - Thumbnail drags move through document pages in reading order, including across grid gaps.
 - Ctrl+wheel changes the thumbnail grid by one column per notch within the existing size limits.
+- Thumbnail filtering is per document and replaces the grid once after a 300 ms debounce.
 - In non-continuous view, one wheel notch at the page edge turns the page.
 - In continuous view, page-scroll shortcuts add 90% of the viewport height to the queued destination and ease out over 600 ms.
 - Middle-click toggles autoscroll. A middle drag autoscrolls until release.
@@ -79,7 +80,7 @@ does no file I/O of its own and launches no processes.
 
 ## Current work
 - [Viewer interaction updates](doc/plans/2026-11-22-viewer-interaction-updates.md) is in progress.
-  Visible-page caching across tab switches is ready for review. Next, debounce thumbnail filtering.
+  Thumbnail filtering is ready for review. Next, prevent double-click text selection in Browse mode.
 
 [doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md).
 - All phases are written and tested on Windows, including after merging upstream Hd's themes and fonts.

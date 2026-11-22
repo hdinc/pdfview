@@ -27,6 +27,7 @@ static double uiScale()
 static constexpr size_t kInfoCache = 200; // pages of links and text kept
 static constexpr int kMaxPanelPreviews = 96;
 static constexpr double kMaxThumbnailSide = 2048;
+static constexpr double kThumbnailFindDelay = 0.3;
 
 static bool isThumbnail(const TileKey& key)
 {
@@ -169,6 +170,7 @@ void Viewer::close()
     mSelA = mSelB = {};
     mCopyPending = false;
     mFind = {};
+    mThumbnailFind = {};
     mRestore = {};
     mPath.clear();
 }
@@ -736,6 +738,46 @@ void Viewer::takeFind()
     }
 }
 
+void Viewer::editThumbnailFind()
+{
+    auto& filter = mThumbnailFind;
+    if (filter.generation) mWorker->find({}, 0, 0, RenderWorker::FindChannel::Thumbnails);
+    filter.generation.reset();
+    filter.pendingPages.clear();
+    if (filter.input[0]) {
+        filter.startAt = ImGui::GetTime() + kThumbnailFindDelay;
+    } else {
+        filter.startAt = -1;
+        filter.filtered = false;
+        filter.pages.clear();
+    }
+}
+
+void Viewer::updateThumbnailFind()
+{
+    auto& filter = mThumbnailFind;
+    constexpr auto channel = RenderWorker::FindChannel::Thumbnails;
+    if (filter.startAt >= 0 && ImGui::GetTime() >= filter.startAt) {
+        filter.startAt = -1;
+        filter.pagesLeft = pageCount();
+        filter.generation = mWorker->find(filter.input, 0, 0, channel);
+    }
+    if (!filter.generation) return;
+    for (const auto& result : mWorker->takeFind(channel)) {
+        if (result.search != *filter.generation) continue;
+        if (!result.matches.empty()) filter.pendingPages.push_back(result.page);
+        --filter.pagesLeft;
+    }
+    if (filter.pagesLeft == 0) {
+        filter.pages.swap(filter.pendingPages);
+        filter.pendingPages.clear();
+        filter.filtered = true;
+        filter.generation.reset();
+        // The sidebar may already have been drawn this frame.
+        filter.publishedOn = mFrame;
+    }
+}
+
 int Viewer::currentMatch() const
 {
     if (mFind.page < 0) return -1;
@@ -1056,6 +1098,8 @@ ImTextureID Viewer::pageTexture(int page, double pixelWidth, int& w, int& h)
 bool Viewer::needsFrames() const
 {
     return mPageScrollTarget || mAutoscrolling || mSettling || !mPending.empty() || state() == State::Loading
+        || mThumbnailFind.startAt >= 0 || mThumbnailFind.generation
+        || (mThumbnailFind.filtered && mThumbnailFind.publishedOn == mFrame)
         || mCopyPending || (mPress.on && mPress.selecting) || (mActions && mActions->pending().n > 0);
 }
 
@@ -1636,6 +1680,7 @@ void Viewer::draw(const char* id, ImVec2 size)
         mLevel = targetLevel();
     }
     takeFind();
+    updateThumbnailFind();
     if (mCopyPending) copy();
     takeInfo();
     uploadResults();

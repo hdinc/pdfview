@@ -23,8 +23,8 @@ private:
 
 // page thumbnails in as many columns as fit, with the current page and the
 // part in view marked. Click to go to a page, drag to move the view,
-// Ctrl+wheel to resize and right-click for display options. Text in the
-// search box finds it in the document and shows only the pages with matches.
+// Ctrl+wheel to resize and right-click for display options. The search box
+// filters to matching pages without moving the document view.
 class ThumbnailPanel {
 public:
     void draw(Viewer& v);
@@ -34,8 +34,6 @@ public:
 
 private:
     void updateDrag(Viewer& v);
-
-    char mFilter[128] = "";
     int mLastCurrent = -1;
     int mLastCols = 0;
     float mLastCellWidth = 0;

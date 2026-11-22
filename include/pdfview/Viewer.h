@@ -230,6 +230,8 @@ private:
     void requestTiles();
     void takeInfo();
     void takeFind();
+    void editThumbnailFind();
+    void updateThumbnailFind();
     void evict();
     void zoomAround(double zoom, double sx, double sy);
     double fbScale() const;
@@ -324,6 +326,16 @@ private:
         bool jump = false; // go to the first match found
         int dir = 1; // of findNext/Prev waiting for results
     } mFind;
+    struct {
+        char input[128] = "";
+        double startAt = -1;
+        std::optional<unsigned> generation;
+        int pagesLeft = 0;
+        std::vector<int> pendingPages;
+        std::vector<int> pages;
+        bool filtered = false;
+        uint64_t publishedOn = 0;
+    } mThumbnailFind;
     bool mFindBar = false;
     bool mFocusFind = false;
     bool mFindFromCurrentPage = true;
