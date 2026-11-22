@@ -65,6 +65,7 @@ does no file I/O of its own and launches no processes.
 - In non-continuous view, one wheel notch at the page edge turns the page.
 - In continuous view, page-scroll shortcuts add 90% of the viewport height to the queued destination and ease out over 600 ms.
 - Middle-click toggles autoscroll. A middle drag autoscrolls until release.
+- Double-click word selection and triple-click line selection are limited to Text Selection mode.
 - The sidebar starts to the left of the document tabs and follows the active document.
 - Sidebar tabs share the available width evenly, with centered Font Awesome icons and names on hover.
 - The standalone Find bar sits below the document and has its own Options popup.
@@ -80,7 +81,7 @@ does no file I/O of its own and launches no processes.
 
 ## Current work
 - [Viewer interaction updates](doc/plans/2026-11-22-viewer-interaction-updates.md) is in progress.
-  Thumbnail filtering is ready for review. Next, prevent double-click text selection in Browse mode.
+  Browse mode click handling is ready for review. Next, add the page context menu.
 
 [doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md).
 - All phases are written and tested on Windows, including after merging upstream Hd's themes and fonts.

@@ -1281,12 +1281,12 @@ void Viewer::handleMouse(ImVec2 origin, bool hovered, bool active)
             mAutoscrolling = true;
             mAutoscrollOrigin = mPress.at;
             mAutoscrollEdgeTravel = 0;
-        } else if (mPress.on && onPage) {
+        } else if (mPress.on && onPage && mTool == Tool::Text) {
             int clicks = io.MouseClickedCount[ImGuiMouseButton_Left];
             if (clicks >= 2) {
                 selectWord(caretAt(page, px, py), clicks >= 3);
                 mPress.dragged = true; // not a click: keep the selection
-            } else if (mTool == Tool::Text && mHoverLink < 0) {
+            } else if (mHoverLink < 0) {
                 Caret c = caretAt(page, px, py);
                 if (c.valid()) {
                     mSelA = mSelB = c;

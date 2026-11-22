@@ -582,3 +582,13 @@
   and tab switching.
 - The visible-page cache fix is committed as b6532d7. Thumbnail filtering is uncommitted
   for review, and both stashes remain intact.
+
+## 2026-11-22 23:01 +03:00 — Restrict multi-click selection to Text Selection mode
+
+- Text Selection mode handles double-click word selection and triple-click line selection.
+  Browse mode uses ordinary link clicks and drag-to-pan.
+- Built build/bin/pdfview-app.exe with UCRT64. All six CTest targets passed. A Windows OpenGL
+  check verified Browse double- and triple-click behavior, panning, an internal link click,
+  and word and line selection in Text Selection mode.
+- The thumbnail filter fix is committed as beed698. Browse mode click handling is
+  uncommitted for review, and both original stashes remain intact.
