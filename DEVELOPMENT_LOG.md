@@ -396,3 +396,45 @@
   as the pointer moves farther from the marker, up to the existing cap.
 - Rebuilt in the main `build/` folder. All six CTest targets and the Windows gesture check passed.
   The headless check measured speed near the dead zone, farther away, and at the cap.
+
+## 2026-11-22 15:35 +03:00 — Animate continuous page scrolling
+
+- Space and Shift+Space glide by 90% of the viewport in continuous view. Rapid taps and held-key
+  repeats advance the queued destination, which is clamped to the document. PgDn and PgUp share
+  the same actions.
+- Adapted the saved destination-based animation to vertical page scrolling in `Viewer`. The
+  existing non-continuous page turns and middle-button autoscroll still use their original paths.
+- Built the main `build/` folder with the UCRT64 tools. All six CTest targets passed. A Windows
+  OpenGL run of the app with injected ImGui input verified the glide after idle, rapid and held
+  repeats, reversal, end clamping, wheel interruption, immediate non-continuous page turns,
+  middle-click latching, middle-drag release, and the handoff between autoscroll and page scrolling.
+- The review build is `build/bin/pdfview-app.exe`. Both original stashes remain intact.
+
+## 2026-11-22 18:23 +03:00 — Give continuous page scrolling a defined end
+
+- Replaced the exponential approach with a 600 ms cubic ease-out. The initial speed matches
+  the user's 0.20 s time constant. The animation reaches the exact destination on the first
+  frame at or after the duration. Repeated presses at a clamped edge leave the timer running.
+- Rebuilt `build/bin/pdfview-app.exe` with the UCRT64 tools. All six CTest targets passed. The
+  Windows OpenGL app check measured completion at 609 ms and verified monotonic travel,
+  repeats at the edge, rapid and held-key scrolling, reversal, wheel interruption, immediate
+  non-continuous page turns, and both middle-button autoscroll gestures.
+- The fix remains uncommitted for review, with both stashes intact.
+
+## 2026-11-22 18:28 +03:00 — Ease into and out of continuous page scrolling
+
+- Changed the 600 ms page glide to use cubic smoothstep. It starts and ends at rest, with
+  matching acceleration and deceleration.
+- Rebuilt the main Windows executable. All six CTest targets passed. The OpenGL app check
+  confirmed that the glide mirrored its start and finish, reached its exact destination, and
+  passed the rapid-tap, held-key, reversal, wheel, non-continuous page-turn, and autoscroll checks.
+- The fix remains uncommitted for review, with both stashes intact.
+
+## 2026-11-22 18:45 +03:00 — Restore the simple continuous-scroll ease-out
+
+- Undid symmetric easing. The animation uses a single cubic interpolation from its start
+  to its queued destination and lands exactly on the target after 600 ms.
+- Rebuilt the main Windows executable. All six CTest targets passed. The OpenGL app check
+  verified exact landing, rapid taps and held-key repeats, reversal, wheel interruption,
+  immediate non-continuous page turns, and middle-button autoscroll.
+- The fix remains uncommitted for review, with both stashes intact.

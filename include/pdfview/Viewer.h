@@ -6,6 +6,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 
@@ -102,7 +103,7 @@ public:
     void first();
     void last();
     void scrollBy(double dx, double dy); // screen pixels
-    void scrollPage(int dir); // a screenful down (1) or up (-1)
+    void scrollPage(int dir); // a screenful down (1) or up (-1), animated in continuous view
     bool canBack() const { return !mHistory.backs.empty(); }
     bool canForward() const { return !mHistory.forwards.empty(); }
     void back();
@@ -204,6 +205,7 @@ private:
     void relayout(ViewMode m);
     void applyZoomMode();
     void handleMouse(ImVec2 origin, bool hovered, bool active);
+    void updatePageScroll();
     void updateAutoscroll();
     void drawAutoscrollMarker(ImDrawList* dl, ImVec2 origin, ImVec2 size) const;
     void drawToolbar();
@@ -263,6 +265,9 @@ private:
     bool mSettling = false;
     // fractional wheel delta at the edge of a non-continuous row
     double mFlipPush = 0;
+    std::optional<double> mPageScrollTarget; // vertical position in document units
+    double mPageScrollStart = 0;
+    double mPageScrollElapsed = 0;
     bool mAutoscrolling = false;
     ImVec2 mAutoscrollOrigin{};
     double mAutoscrollEdgeTravel = 0; // screen pixels accumulated at a page edge

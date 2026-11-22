@@ -76,6 +76,7 @@ void Viewer::open(const std::string& path, const std::string& password)
 
 void Viewer::releaseTextures()
 {
+    mPageScrollTarget.reset();
     mAutoscrolling = false;
     for (auto& [k, t] : mTiles)
         freeTex(t);
@@ -102,6 +103,7 @@ void Viewer::close()
     mView = {};
     mSettling = false;
     mFlipPush = 0;
+    mPageScrollTarget.reset();
     mAutoscrolling = false;
     mInfo.clear();
     mLastInfoWanted.clear();
@@ -173,6 +175,7 @@ int Viewer::currentPage() const { return mLaidOut ? mView.currentPage(mLayout) :
 
 void Viewer::zoomAround(double zoom, double sx, double sy)
 {
+    mPageScrollTarget.reset();
     double before = mView.zoom;
     mView.zoomAt(zoom, sx, sy, mLayout);
     if (mView.zoom != before) {
@@ -236,6 +239,7 @@ void Viewer::setOverviewColumns(int n)
 
 void Viewer::relayout(ViewMode m)
 {
+    mPageScrollTarget.reset();
     Dest at = position();
     mMode = m;
     mLayout.build(mWorker->pageSizes(), m);
@@ -298,12 +302,14 @@ Dest Viewer::position() const
 void Viewer::jumpTo(History::Entry e)
 {
     if (!mLaidOut) return;
+    mPageScrollTarget.reset();
     mView.goToPage(e.page, mLayout, e.y);
 }
 
 void Viewer::goTo(Dest d, bool record)
 {
     if (!mLaidOut || d.page < 0 || d.page >= pageCount()) return;
+    mPageScrollTarget.reset();
     if (record) mHistory.push(here());
     // a little above the target, so its line shows whole
     mView.goToPage(d.page, mLayout, d.y >= 0 ? std::max(0.0, d.y - 4) : -1);
@@ -330,6 +336,7 @@ void Viewer::first() { goToPage(0, true); }
 void Viewer::last()
 {
     if (!mLaidOut) return;
+    mPageScrollTarget.reset();
     mHistory.push(here());
     mView.goToPage(pageCount() - 1, mLayout);
     mView.y = 1e12; // its end
@@ -339,6 +346,7 @@ void Viewer::last()
 void Viewer::scrollBy(double dx, double dy)
 {
     if (!mLaidOut) return;
+    mPageScrollTarget.reset();
     mView.x += dx / mView.zoom;
     mView.y += dy / mView.zoom;
     mView.clamp(mLayout);
@@ -348,16 +356,29 @@ void Viewer::scrollPage(int dir)
 {
     if (!mLaidOut) return;
     double vh = mView.h / mView.zoom;
-    if (!mMode.continuous) {
-        auto [b0, b1] = mView.band(mLayout);
-        if (dir > 0 && mView.y + vh >= b1 - 0.5) {
-            mView.flip(1, mLayout);
-            return;
+    if (mMode.continuous) {
+        // Repeated presses add to the destination, even mid-scroll.
+        View target = mView;
+        double previousTarget = mPageScrollTarget.value_or(mView.y);
+        target.y = previousTarget + dir * vh * 0.9;
+        target.clamp(mLayout);
+        if (target.y == mView.y) {
+            mPageScrollTarget.reset();
+        } else if (target.y != previousTarget) {
+            mPageScrollTarget = target.y;
+            mPageScrollStart = mView.y;
+            mPageScrollElapsed = 0;
         }
-        if (dir < 0 && mView.y <= b0 + 0.5) {
-            mView.flip(-1, mLayout);
-            return;
-        }
+        return;
+    }
+    auto [b0, b1] = mView.band(mLayout);
+    if (dir > 0 && mView.y + vh >= b1 - 0.5) {
+        mView.flip(1, mLayout);
+        return;
+    }
+    if (dir < 0 && mView.y <= b0 + 0.5) {
+        mView.flip(-1, mLayout);
+        return;
     }
     mView.y += dir * vh * 0.9;
     mView.clamp(mLayout);
@@ -421,6 +442,7 @@ bool Viewer::visibleRect(int page, Rect& r) const
 void Viewer::centerOn(int page, double px, double py)
 {
     if (!mLaidOut || page < 0 || page >= pageCount()) return;
+    mPageScrollTarget.reset();
     mView.row = mLayout.rowOf[static_cast<size_t>(page)];
     mView.x = mLayout.left(page) + px - mView.w / mView.zoom / 2;
     mView.y = mLayout.top[static_cast<size_t>(page)] + py - mView.h / mView.zoom / 2;
@@ -729,6 +751,7 @@ void Viewer::showMatch()
 {
     auto it = mFind.matches.find(mFind.page);
     if (!mLaidOut || it == mFind.matches.end() || mFind.index < 0 || mFind.index >= static_cast<int>(it->second.size())) return;
+    mPageScrollTarget.reset();
     const Rect& r = it->second[static_cast<size_t>(mFind.index)];
     int p = mFind.page;
     double vw = mView.w / mView.zoom, vh = mView.h / mView.zoom;
@@ -978,7 +1001,7 @@ ImTextureID Viewer::pageTexture(int page, double pixelWidth, int& w, int& h)
 
 bool Viewer::needsFrames() const
 {
-    return mAutoscrolling || mSettling || !mPending.empty() || state() == State::Loading
+    return mPageScrollTarget || mAutoscrolling || mSettling || !mPending.empty() || state() == State::Loading
         || mCopyPending || (mPress.on && mPress.selecting) || (mActions && mActions->pending().n > 0);
 }
 
@@ -1123,6 +1146,7 @@ void Viewer::handleMouse(ImVec2 origin, bool hovered, bool active)
     }
 
     if (hovered) {
+        if (io.MouseWheel != 0 || io.MouseWheelH != 0) mPageScrollTarget.reset();
         if (io.KeyCtrl && io.MouseWheel != 0) {
             mZoomMode = ZoomMode::Free;
             zoomAround(mView.zoom * std::pow(1.15, io.MouseWheel), sx, sy);
@@ -1152,6 +1176,7 @@ void Viewer::handleMouse(ImVec2 origin, bool hovered, bool active)
     }
 
     if (ImGui::IsItemActivated()) {
+        mPageScrollTarget.reset();
         mPress = {};
         mPress.on = !stopClick;
         mPress.button = ImGui::IsMouseDown(ImGuiMouseButton_Left) ? ImGuiMouseButton_Left : ImGuiMouseButton_Middle;
@@ -1181,6 +1206,7 @@ void Viewer::handleMouse(ImVec2 origin, bool hovered, bool active)
         if (!mPress.dragged && d.x * d.x + d.y * d.y > 9) mPress.dragged = true;
     }
     if (mPress.on && active && !middle) {
+        if (mPress.dragged) mPageScrollTarget.reset();
         if (mPress.dragged && mPress.selecting) {
             int p;
             double x, y;
@@ -1228,6 +1254,18 @@ void Viewer::handleMouse(ImVec2 origin, bool hovered, bool active)
     mView.clamp(mLayout);
 }
 
+void Viewer::updatePageScroll()
+{
+    if (!mPageScrollTarget) return;
+    constexpr double duration = 0.60;
+    // The first frame can follow a long wait for input.
+    mPageScrollElapsed += std::min(ImGui::GetIO().DeltaTime, 0.05f);
+    double remaining = std::max(0.0, 1 - mPageScrollElapsed / duration);
+    // Cubic ease-out.
+    mView.y = std::lerp(*mPageScrollTarget, mPageScrollStart, remaining * remaining * remaining);
+    if (remaining == 0) mPageScrollTarget.reset();
+}
+
 void Viewer::updateAutoscroll()
 {
     if (!mAutoscrolling) return;
@@ -1239,6 +1277,7 @@ void Viewer::updateAutoscroll()
     }
     if (!ImGui::IsMousePosValid()) return;
 
+    mPageScrollTarget.reset();
     const ImGuiIO& io = ImGui::GetIO();
     double scale = uiScale();
     auto distance = [&](double offset) {
@@ -1464,6 +1503,7 @@ void Viewer::drawScrollbar(ImVec2 pos, ImVec2 size)
     ImGui::InvisibleButton("##vscroll", size);
     bool held = ImGui::IsItemActive();
     if (held) {
+        mPageScrollTarget.reset();
         float my = ImGui::GetIO().MousePos.y;
         if (ImGui::IsItemActivated()) mGrab = (my >= thumbY && my <= thumbY + thumbH) ? my - thumbY : thumbH / 2;
         mView.y = b0 + std::clamp((my - mGrab - pos.y) / track, 0.0f, 1.0f) * maxY;
@@ -1511,6 +1551,7 @@ void Viewer::draw(const char* id, ImVec2 size)
     ImVec2 avail = ImGui::GetContentRegionAvail();
     ImVec2 canvas{std::max(1.0f, avail.x - scrollbarW()), std::max(1.0f, avail.y)};
     if (mView.w != canvas.x || mView.h != canvas.y) {
+        mPageScrollTarget.reset();
         // keep the page under the view's centre on resize
         double cy = mView.y + mView.h / mView.zoom / 2;
         mView.w = canvas.x;
@@ -1529,6 +1570,7 @@ void Viewer::draw(const char* id, ImVec2 size)
     }
     handleMouse(origin, hovered, active);
     updateAutoscroll();
+    updatePageScroll();
     if (mAutoscrolling && hovered)
         ImGui::SetMouseCursor(mLayout.width > mView.w / mView.zoom ? ImGuiMouseCursor_ResizeAll : ImGuiMouseCursor_ResizeNS);
     drawScrollbar({origin.x + canvas.x, origin.y}, {scrollbarW(), canvas.y});
