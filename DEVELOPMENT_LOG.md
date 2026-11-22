@@ -473,3 +473,22 @@
   check verified a single regular glyph draw in the fallback and confirmed real bold and live
   font switching.
 - The bold-title fix remains uncommitted, with both stashes intact.
+
+## 2026-11-22 19:32 +03:00 — Use icons for the sidebar tabs
+
+- Replaced the Thumbnails, Contents, and Bookmarks tab labels with the images, list, and
+  bookmark glyphs from the saved batch. The existing tab bar supplies selection and
+  keyboard focus. The full names appear in hover tooltips.
+- Rebuilt build/bin/pdfview-app.exe with UCRT64. All six CTest targets passed. The Windows
+  OpenGL app check verified the glyphs at minimum sidebar width, tooltips, tab clicks,
+  action-driven selection including Add Bookmark, and restoring the tab from settings.
+- The fix is uncommitted for review. Both stashes remain intact.
+
+## 2026-11-22 19:38 +03:00 — Stretch the sidebar tabs evenly
+
+- Gave the three native tabs equal shares of the available sidebar width, accounting for tab
+  spacing and distributing the leftover pixels. Each glyph is centered in its tab.
+- Rebuilt build/bin/pdfview-app.exe with UCRT64. All six CTest targets passed. The Windows
+  OpenGL app check verified width and centering at sidebar widths of 150, 200, and 280 at scale
+  1, and checked tooltips, clicks, action-driven selection, and restoring the selected tab.
+- The fix remains uncommitted for review. Both stashes remain intact.

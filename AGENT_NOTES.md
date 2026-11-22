@@ -61,6 +61,7 @@ does no file I/O of its own and launches no processes.
 - In continuous view, page-scroll shortcuts add 90% of the viewport height to the queued destination and ease out over 600 ms.
 - Middle-click toggles autoscroll. A middle drag autoscrolls until release.
 - The sidebar starts to the left of the document tabs and follows the active document.
+- Sidebar tabs share the available width evenly, with centered Font Awesome icons and names on hover.
 - The standalone Find bar sits below the document and has its own Options popup.
 - Contents uses native tree lines and truncates titles to fit the sidebar.
 - Contents keeps the clicked heading highlighted at its landing position and follows the viewport when scrolling resumes.
@@ -72,7 +73,7 @@ does no file I/O of its own and launches no processes.
 - [doc/plans/](doc/plans/): implementation plans, dated.
 
 ## Current work
-- The next batch item after approval is replacing the sidebar tab names with icons.
+- The next batch item after approval is removing the gaps above and below the highlighted Contents row.
   The original batch is saved in the pdfview and Hd stashes named `Previous viewer changes for individual review`.
 
 [doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md).

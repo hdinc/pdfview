@@ -683,10 +683,23 @@ void App::drawSidebar(Tab& t, float width, float splitterWidth)
     ImGui::PushID(&t);
     ImGui::BeginChild("##sidebar", {width, 0});
     if (ImGui::BeginTabBar("##sidetabs")) {
-        const char* names[] = {"Thumbnails", "Contents", "Bookmarks"};
+        constexpr const char* icons[] = {Icon::viewMode, Hd::Icon::list, Icon::bookmark};
+        constexpr const char* labels[] = {"##Thumbnails", "##Contents", "##Bookmarks"};
+        float available = ImGui::GetContentRegionAvail().x - 2 * ImGui::GetStyle().ItemInnerSpacing.x;
+        float edge = 0;
         for (int i = 0; i < 3; i++) {
-            ImGuiTabItemFlags f = mSideForce && mSettings.sidebarTab == i ? ImGuiTabItemFlags_SetSelected : 0;
-            if (ImGui::BeginTabItem(names[i], nullptr, f)) {
+            float nextEdge = std::floor(available * (i + 1) / 3);
+            ImGui::SetNextItemWidth(std::max(1.0f, nextEdge - edge));
+            edge = nextEdge;
+            ImGuiTabItemFlags flags = ImGuiTabItemFlags_NoTooltip;
+            if (mSideForce && mSettings.sidebarTab == i) flags |= ImGuiTabItemFlags_SetSelected;
+            bool selected = ImGui::BeginTabItem(labels[i], nullptr, flags);
+            if (ImGui::IsItemVisible()) {
+                ImRect rect{ImGui::GetItemRectMin(), ImGui::GetItemRectMax()};
+                ImGui::RenderTextClipped(rect.Min, rect.Max, icons[i], nullptr, nullptr, {0.5f, 0.5f}, &rect);
+            }
+            ImGui::SetItemTooltip("%s", labels[i] + 2);
+            if (selected) {
                 if (!mSideForce) mSettings.sidebarTab = i;
                 if (t.viewer->state() == Viewer::State::Ready) {
                     if (i == 0) mThumbs.draw(*t.viewer);
