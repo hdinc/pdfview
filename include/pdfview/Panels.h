@@ -41,6 +41,7 @@ private:
     float mLastCellWidth = 0;
     float mLastRowPadding = 0;
     float mLastScroll = 0;
+    float mColumnWheelRemainder = 0;
     const Viewer* mLastViewer = nullptr;
     int mAnchorPage = -1;
     float mAnchorTop = 0; // screen Y of the anchor thumbnail's top edge

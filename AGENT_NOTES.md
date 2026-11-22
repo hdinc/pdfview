@@ -59,6 +59,7 @@ does no file I/O of its own and launches no processes.
 - The thumbnail context menu controls page labels and gaps. Clicking a thumbnail keeps sidebar scroll.
 - Thumbnail page borders use the theme's border color, including when gaps and page numbers are hidden.
 - Thumbnail drags move through document pages in reading order, including across grid gaps.
+- Ctrl+wheel changes the thumbnail grid by one column per notch within the existing size limits.
 - In non-continuous view, one wheel notch at the page edge turns the page.
 - In continuous view, page-scroll shortcuts add 90% of the viewport height to the queued destination and ease out over 600 ms.
 - Middle-click toggles autoscroll. A middle drag autoscrolls until release.
@@ -77,7 +78,7 @@ does no file I/O of its own and launches no processes.
 
 ## Current work
 - [Viewer interaction updates](doc/plans/2026-11-22-viewer-interaction-updates.md) is in progress.
-  Thumbnail borders and cross-page dragging are ready for review. Next, make Ctrl+wheel change by one column.
+  The one-column Ctrl+wheel change is ready for review. Next, retain thumbnail textures across tab switches.
 
 [doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md).
 - All phases are written and tested on Windows, including after merging upstream Hd's themes and fonts.

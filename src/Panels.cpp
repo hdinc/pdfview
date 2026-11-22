@@ -252,6 +252,7 @@ void ThumbnailPanel::draw(Viewer& v)
     searchBox("##filter", mFilter, sizeof mFilter);
     if (ImGui::IsItemEdited()) v.find(mFilter, v.findFlags());
     if (v.state() != Viewer::State::Ready) {
+        mColumnWheelRemainder = 0;
         ImGui::PopID();
         return;
     }
@@ -271,7 +272,6 @@ void ThumbnailPanel::draw(Viewer& v)
     bool labeled = showLabels;
     float gap = spaced ? st.ItemSpacing.x * 2 : 0;
     float rowGap = spaced ? st.ItemSpacing.y : 0;
-    float px = size * sc; // the width on screen
     float pad = spaced ? 6 * sc : 0;
     float labelH = labeled ? ImGui::GetTextLineHeightWithSpacing() : 0;
     ImVec2 avail = ImGui::GetContentRegionAvail();
@@ -282,7 +282,10 @@ void ThumbnailPanel::draw(Viewer& v)
     // thumbnails don't jump in size as they start or stop overflowing.
     float width = std::max(1.0f, std::floor(std::max(IMGUI_WINDOW_HARD_MIN_SIZE, avail.x))
         - 2 * padding.x - st.ScrollbarSize);
-    int cols = std::max(1, static_cast<int>((width + gap) / (px + gap)));
+    auto columnsForSize = [&](float targetSize) {
+        return std::max(1, static_cast<int>((width + gap) / (targetSize * sc + gap)));
+    };
+    int cols = columnsForSize(size);
     float cellW = (width - gap * (cols - 1)) / cols;
     float imgW = std::max(1.0f, cellW - 2 * pad);
     float rowPadding = 2 * pad + labelH + rowGap;
@@ -309,10 +312,25 @@ void ThumbnailPanel::draw(Viewer& v)
         return;
     }
     // Ctrl+wheel and the context menu update the next layout.
-    if (ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows) && io.MouseWheel != 0) {
-        if (io.KeyCtrl)
-            size = std::clamp(size * std::pow(1.1f, io.MouseWheel), 60.0f, 800.0f);
-        else
+    bool hoveredGrid = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows);
+    if (mLastViewer != &v || io.AppFocusLost) mColumnWheelRemainder = 0;
+    if (hoveredGrid && io.KeyCtrl) {
+        constexpr float minSize = 60;
+        constexpr float maxSize = 800;
+        mColumnWheelRemainder += io.MouseWheel;
+        int steps = static_cast<int>(mColumnWheelRemainder);
+        mColumnWheelRemainder -= steps;
+        if (steps != 0) {
+            int target = std::clamp(cols - steps, columnsForSize(maxSize), columnsForSize(minSize));
+            if (target != cols) {
+                // Use the middle of the quotient interval that gives exactly target columns.
+                float pitch = (width + gap) / (target + 0.5f);
+                size = std::clamp((pitch - gap) / sc, minSize, maxSize);
+            }
+        }
+    } else {
+        mColumnWheelRemainder = 0;
+        if (hoveredGrid && io.MouseWheel != 0)
             ImGui::SetScrollY(ImGui::GetScrollY() - io.MouseWheel * ImGui::GetTextLineHeight() * 5);
     }
     if (ImGui::BeginPopupContextWindow("##thumbmenu", ImGuiPopupFlags_MouseButtonRight)) {

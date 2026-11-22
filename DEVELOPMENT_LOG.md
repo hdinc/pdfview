@@ -533,3 +533,14 @@
   check verified mixed-height pages in a multi-column grid, dragging in both directions with
   the source thumbnail out of view, non-continuous navigation, ordinary clicks, and cancellation.
 - The drag and thumbnail border fixes are both uncommitted. Both original stashes remain intact.
+
+## 2026-11-22 21:35 +03:00 — Change thumbnail columns one notch at a time
+
+- Ctrl+wheel now moves the grid by one column per notch within the existing thumbnail size
+  limits. Fractional deltas accumulate while Ctrl and grid hover are maintained. The target
+  column count maps back to the saved thumbnail size so resizing can still reflow the grid.
+- Rebuilt build/bin/pdfview-app.exe with UCRT64. All six CTest targets passed. A Windows
+  OpenGL check verified both directions, fractional and multi-notch events, size limits,
+  plain wheel scrolling, the top-thumbnail anchor, and saving the target size.
+- Thumbnail borders and dragging were committed separately as d1f28a3 and d4746d6.
+  The Ctrl+wheel fix remains uncommitted for review. Both original stashes remain intact.
