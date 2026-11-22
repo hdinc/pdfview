@@ -57,6 +57,7 @@ does no file I/O of its own and launches no processes.
 - The thumbnail grid reserves a fixed scrollbar gutter to avoid jumps in thumbnail width.
 - Thumbnails request a whole-page render when the standard preview is smaller than their display size.
 - The thumbnail context menu controls page labels and gaps. Clicking a thumbnail keeps sidebar scroll.
+- Thumbnail page borders use the theme's border color, including when gaps and page numbers are hidden.
 - In non-continuous view, one wheel notch at the page edge turns the page.
 - In continuous view, page-scroll shortcuts add 90% of the viewport height to the queued destination and ease out over 600 ms.
 - Middle-click toggles autoscroll. A middle drag autoscrolls until release.
@@ -75,7 +76,7 @@ does no file I/O of its own and launches no processes.
 
 ## Current work
 - [Viewer interaction updates](doc/plans/2026-11-22-viewer-interaction-updates.md) is in progress.
-  The thumbnail viewport fill is ready for review. Next, add thumbnail page borders.
+  Thumbnail page borders are ready for review. Next, let thumbnail drags cross pages.
 
 [doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md).
 - All phases are written and tested on Windows, including after merging upstream Hd's themes and fonts.

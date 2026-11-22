@@ -512,3 +512,12 @@
 - Built build/bin/pdfview-app.exe with UCRT64. All six CTest targets passed. A Windows OpenGL
   app check verified both pages of a fitted spread, the clipped region of a zoomed page
   during wheel scrolling, and the fill with thumbnail gaps and page numbers disabled.
+
+## 2026-11-22 21:25 +03:00 — Draw borders around thumbnail pages
+
+- Drew a thin border in the theme's border color around each thumbnail, including when gaps and
+  page numbers are disabled. The viewport indicator and selection highlights draw over it.
+- Rebuilt build/bin/pdfview-app.exe with UCRT64. All six CTest targets passed. A Windows OpenGL
+  check verified page borders in light and dark themes and around adjoining white thumbnails
+  with gaps and page numbers disabled.
+- The border fix is uncommitted for review. Both original stashes remain intact.
