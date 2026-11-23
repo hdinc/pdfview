@@ -95,6 +95,8 @@ does no file I/O of its own and launches no processes.
 - [doc/plans/](doc/plans/): implementation plans, dated.
 
 ## Current work
+- [View fit, page gaps, drag zoom, settings window and toolbar](doc/plans/2026-11-24-view-fit-zoom-settings.md):
+  approved, not started. First step: make Fit Width and Fit Page fill the view.
 - [Viewer interaction updates](doc/plans/2026-11-22-viewer-interaction-updates.md) is done (last commits: Hd
   3191ff6, pdfview bd53f4d). Not yet tested on Linux.
 
