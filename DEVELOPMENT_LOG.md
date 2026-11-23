@@ -1012,3 +1012,46 @@
   `first_alone=1` loads as facing (keeping its continuous setting) and saves without the key.
   All eight CTest targets passed.
 - **Next steps:** The Settings window (plan step 5).
+
+## 2026-11-24 00:39 +03:00 — A Settings window
+
+- **Features implemented:** Settings > Settings... (`settings.open`, Ctrl+Comma) opens one
+  window with three sections, each a label column and controls:
+  - Appearance: theme (System, the built-in and custom themes) with Edit Themes..., interface
+    size, toolbar size, interface and monospace fonts, font size.
+  - Viewing: the view mode new files open in (Single Page, Facing Pages, Overview, and
+    Continuous), gaps between pages, overview columns, smooth scrolling (the Animations
+    setting). The old "Use This View Mode for New Files" (copy the active document's mode)
+    was dropped in review: the combo and checkbox set the same thing.
+  - Keyboard: Configure Keyboard Shortcuts..., which stays its own window.
+- **Changes made:** The Settings menu shrank to Settings... and Configure Keyboard
+  Shortcuts.... Its Theme, Interface Size, Toolbar Size, Fonts..., Animations, Overview
+  columns and Use This View Mode for New Files entries moved into the window; the separate
+  Fonts window is gone (`drawLookMenu` and `drawFontsWindow` replaced by
+  `drawSettingsWindow`). The installed fonts are listed when the window first opens.
+- **How it works:** Every control applies at once and saves through `saveSettings` (so it
+  merges with other windows); sliders save when released. The Overview columns slider now
+  saves too; the old menu slider only reached the file at exit. The theme combo is the app's
+  own, because `Hd::Theme::combo` has no "System" entry: it lists System, then
+  `Hd::Theme::menuItems`, and shows the current theme's name through `Hd::Theme::find`.
+  - Rejected: a modal dialog with OK/Cancel (settings apply live everywhere else).
+- **Testing:** Built; all eight CTest targets passed. In pdfview-app, a synthesized Ctrl+Comma
+  opened the window with every section and current value shown (screenshot).
+- **Next steps:** The toolbar in three groups, with a Settings button (plan step 6).
+
+## 2026-11-24 00:44 +03:00 — New files open in the last layout used
+
+- **Changes made:** Replaced the Settings window's "New files open in" choice, its Continuous
+  checkbox and the button that copied the current document's mode (requested in review). New
+  files now open in the layout last chosen in any tab: Single or Facing Pages, continuous or
+  not.
+- **How it works:** `App::followLayout`, run each frame, compares each tab's view mode with
+  the one it last saw (`Tab::mode`, set when the file opens). A change becomes
+  `Settings::defaultMode`, which `Settings::file` gives new files, and is saved. Overview is
+  ignored, and leaving it returns to the earlier layout without counting as a change, so a
+  quick look at Overview doesn't decide how the next file opens. Restoring a known file's
+  own layout isn't a change either. Files opened before keep their saved layout.
+- **Testing:** All eight CTest targets passed. In pdfview-app with a separate APPDATA, a file
+  saved in Facing Pages, with Facing Pages as the default: pressing I (Single Page), then O
+  twice (into Overview and back), left the default at Single Page; opening a file not seen
+  before then started it in Single Page.

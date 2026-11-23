@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress since 2026-11-24. Steps 1 to 4 done; step 4 awaits review.
+In progress since 2026-11-24. Steps 1 to 5 done; step 5 awaits review.
 
 ## Goal
 
@@ -126,7 +126,7 @@ offer it, and the toolbar comes last because it gets the button for the new Sett
   actions, the View Mode menu and `Settings` (reading `first_alone=` still works and is ignored).
   Update "Layout: view modes". Check an old settings file with `first_alone=1` loads as plain
   Facing Pages and saves without the key.
-- [ ] **Settings window.** Add `App::drawSettingsWindow` with the sections above, the
+- [x] **Settings window.** Add `App::drawSettingsWindow` with the sections above, the
   `settings.open` action (Ctrl+Comma), and the reduced Settings menu. Fold the Fonts window in.
   Check each control applies live, saves, and survives a restart; check two windows' saves still
   merge.

@@ -57,7 +57,8 @@ does no file I/O of its own and launches no processes.
     `App.cpp`'s `Icon` namespace.
 - Native file dialogs (Win32 / zenity / kdialog) instead of nativefiledialog-extended: no GTK build dep.
 - The app opens only http/https/mailto links, after asking; other links can only be copied.
-- A file opened for the first time gets the viewer's default view; known files get their saved one.
+- A file opened for the first time gets the last layout chosen in any tab (Overview excepted, `App::followLayout`)
+  and the viewer's default zoom; known files get their saved view.
 - Resizing the thumbnail sidebar anchors the top edge of the first visible thumbnail.
 - The thumbnail grid reserves a fixed scrollbar gutter to avoid jumps in thumbnail width.
 - Thumbnails request a whole-page render when the standard preview is smaller than their display size.
@@ -86,6 +87,9 @@ does no file I/O of its own and launches no processes.
 - Contents rows use zero vertical cell padding so the highlight reaches both row edges.
 - The Contents context menu expands and collapses branches and highlights its target row.
 - Annotations are out of scope; documents open read-only.
+- Preferences live in one Settings window (`App::drawSettingsWindow`, Ctrl+Comma): Appearance, Viewing, Keyboard.
+  The theme and shortcut editors stay separate windows opened from it. The Settings menu has only Settings... and
+  Configure Keyboard Shortcuts....
 - View modes are Single, Facing, Overview (each continuous or not). Facing Pages (Center First Page) was removed
   on request (2026-11-24); `first_alone=` in old settings files is ignored.
 - The layout has no margin around the document: `Layout::gap` is only between pages and rows, so fits, page
@@ -104,8 +108,8 @@ does no file I/O of its own and launches no processes.
 
 ## Current work
 - [View fit, page gaps, drag zoom, settings window and toolbar](doc/plans/2026-11-24-view-fit-zoom-settings.md):
-  steps 1 to 4 done (fit 01d86f1, gaps 1629e26, drag zoom 9221f1d; removing the centred first page
-  uncommitted, for review). Next: the Settings window.
+  steps 1 to 5 done (fit 01d86f1, gaps 1629e26, drag zoom 9221f1d, first page f7ca8e7; Settings window
+  uncommitted, for review). Next: the toolbar in three groups.
 - [Viewer interaction updates](doc/plans/2026-11-22-viewer-interaction-updates.md) is done (last commits: Hd
   3191ff6, pdfview bd53f4d). Not yet tested on Linux.
 

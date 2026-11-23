@@ -43,6 +43,7 @@ private:
         uintmax_t size = 0;
         double changedAt = -1; // when a change was seen, waiting for it to settle
         char password[128] = "";
+        pdfview::ViewMode mode; // the layout last seen, to notice it changing
         struct {
             pdfview::Dest target;
             pdfview::Dest landing;
@@ -57,6 +58,7 @@ private:
     void close(size_t i);
     void reload(Tab& t);
     void remember(const Tab& t);
+    void followLayout();
     void watchFiles();
     void saveSettings();
     std::string settingsPath() const;
@@ -74,8 +76,7 @@ private:
     void drawBookmarks(Tab& t);
     void drawLocked(Tab& t);
     void drawDialogs();
-    void drawLookMenu();
-    void drawFontsWindow();
+    void drawSettingsWindow();
     void applyFonts();
     void menuItem(const char* id, const char* icon = nullptr);
     std::string tabLabel(const Tab& t) const;
@@ -96,8 +97,8 @@ private:
     uint64_t mSelect = 0; // a tab to bring to the front
     bool mShortcutsOpen = false;
     Hd::ThemeEditor mThemeEditor;
-    bool mFontsOpen = false;
-    std::vector<Hd::FontFace> mFontList; // read when the fonts window first opens
+    bool mSettingsOpen = false;
+    std::vector<Hd::FontFace> mFontList; // read when the Settings window first opens
     bool mFontListRead = false;
     Hd::FontPicker mUiPicker, mMonoPicker{true};
     bool mSideForce = true; // select the sidebar tab in the settings

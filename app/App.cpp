@@ -185,6 +185,7 @@ void App::start(Tab& t, const std::string& password)
     FileState& f = mSettings.file(t.path);
     t.viewer->open(t.path, password);
     t.viewer->setViewMode(f.mode);
+    t.mode = t.viewer->viewMode();
     // a file seen before opens where it was left; a new one the viewer's
     // way (fit width, but not huge on a wide window)
     if (known) t.viewer->restoreView(f.pos, f.zoomMode, f.zoom);
@@ -309,6 +310,7 @@ void App::addActions()
                 if (const Bookmark* b = adjacentBookmark(*t, dir)) openBookmark(*t, *b);
         }).enabled = [this, dir] { Tab* t = active(); return t && adjacentBookmark(*t, dir); };
     }
+    mActions.add("settings.open", "Settings...", "Settings", "Ctrl+Comma", "", [this] { mSettingsOpen = true; });
     mActions.add("settings.shortcuts", "Configure Keyboard Shortcuts...", "Settings", "Ctrl+Alt+Comma", "", [this] { mShortcutsOpen = true; });
 }
 
@@ -333,6 +335,22 @@ bool App::needsFrames() const
 
 // --- drawing
 
+void App::followLayout()
+{
+    // New files open in the layout chosen last, in any tab. Overview is only
+    // a way to browse, so it isn't remembered.
+    // Leaving Overview returns to the layout before it, which isn't a change.
+    for (auto& t : mTabs) {
+        pdfview::ViewMode m = t->viewer->viewMode();
+        if (m.columns > 2 || m == t->mode) continue;
+        t->mode = m;
+        if (!(m == mSettings.defaultMode)) {
+            mSettings.defaultMode = m;
+            saveSettings();
+        }
+    }
+}
+
 void App::frame()
 {
     mDead.clear();
@@ -352,6 +370,7 @@ void App::frame()
     drawWorkspace();
     ImGui::End();
     drawDialogs();
+    followLayout();
 
     Tab* t = active();
     std::string title = t ? fileName(t->path) + " - pdfview" : "pdfview";
@@ -433,87 +452,144 @@ void App::drawMenus()
         ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Settings")) {
+        menuItem("settings.open");
         menuItem("settings.shortcuts");
-        ImGui::Separator();
-        drawLookMenu();
-        ImGui::Separator();
-        if (ImGui::MenuItem("Animations", nullptr, &mSettings.animations)) {
-            for (auto& t : mTabs) t->viewer->options().animations = mSettings.animations;
-            saveSettings();
-        }
-        if (ImGui::SliderInt("Overview columns", &mSettings.overviewColumns, 3, 10))
-            for (auto& t : mTabs)
-                t->viewer->setOverviewColumns(mSettings.overviewColumns);
-        bool def = false;
-        if (Viewer* v = activeViewer(); v && ImGui::MenuItem("Use This View Mode for New Files", nullptr, &def)) mSettings.defaultMode = v->viewMode();
         ImGui::EndMenu();
     }
     ImGui::EndMenuBar();
 }
 
-void App::drawLookMenu()
+void App::drawSettingsWindow()
 {
-    if (ImGui::BeginMenu("Theme")) {
-        // "system": Dark or Light as the system is set
-        if (ImGui::MenuItem("System", nullptr, mSettings.theme == "system") && mSettings.theme != "system") {
-            mSettings.theme = "system";
-            mGui.setTheme(mSettings.theme);
-            saveSettings();
-        }
-        ImGui::Separator();
-        if (Hd::Theme::menuItems(mSettings.theme)) {
-            mGui.setTheme(mSettings.theme);
-            saveSettings();
-        }
-        ImGui::Separator();
-        if (ImGui::MenuItem("Edit Themes...")) mThemeEditor.open = true;
-        ImGui::EndMenu();
-    }
-    if (ImGui::BeginMenu("Interface Size")) {
-        for (int p : {75, 90, 100, 110, 125, 150, 175, 200}) {
-            char l[16];
-            snprintf(l, sizeof l, "%d%%", p);
-            if (ImGui::MenuItem(l, nullptr, std::lround(mSettings.uiScale * 100) == p)) {
-                mSettings.uiScale = p / 100.0f;
-                mGui.setUserScale(mSettings.uiScale);
-                saveSettings();
-            }
-        }
-        ImGui::EndMenu();
-    }
-    if (ImGui::BeginMenu("Toolbar Size")) {
-        Hd::toolbarSizeMenu();
-        ImGui::EndMenu();
-    }
-    if (ImGui::MenuItem("Fonts...")) mFontsOpen = true;
-}
-
-void App::drawFontsWindow()
-{
-    if (!mFontsOpen) return;
+    if (!mSettingsOpen) return;
     if (!mFontListRead) {
         mFontListRead = true;
         mFontList = Hd::systemFonts(); // takes a moment, once
     }
-    ImGui::SetNextWindowSize({560 * mGui.scale(), 0}, ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Fonts", &mFontsOpen, ImGuiWindowFlags_NoCollapse)) {
+    float sc = mGui.scale();
+    ImGui::SetNextWindowSize({560 * sc, 0}, ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin("Settings", &mSettingsOpen, ImGuiWindowFlags_NoCollapse)) {
+        ImGui::End();
+        return;
+    }
+    // a label column, then the controls filling the rest
+    auto table = [&](const char* id) {
+        if (!ImGui::BeginTable(id, 2, ImGuiTableFlags_SizingStretchProp)) return false;
+        ImGui::TableSetupColumn("label", ImGuiTableColumnFlags_WidthFixed, 170 * sc);
+        ImGui::TableSetupColumn("control", ImGuiTableColumnFlags_WidthStretch);
+        return true;
+    };
+    auto row = [](const char* label) {
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted(label);
+        ImGui::TableNextColumn();
+        ImGui::SetNextItemWidth(-FLT_MIN);
+    };
+
+    ImGui::SeparatorText("Appearance");
+    if (table("##appearance")) {
+        row("Theme");
+        std::string themeName = "System";
+        if (mSettings.theme != "system") {
+            Hd::Theme t;
+            std::string error;
+            themeName = Hd::Theme::find(mSettings.theme, t, error) ? t.name : mSettings.theme;
+        }
+        float editW = ImGui::CalcTextSize("Edit Themes...").x + 2 * ImGui::GetStyle().FramePadding.x;
+        ImGui::SetNextItemWidth(-(editW + ImGui::GetStyle().ItemSpacing.x));
+        if (ImGui::BeginCombo("##theme", themeName.c_str())) {
+            // "system": Dark or Light as the system is set
+            if (ImGui::Selectable("System", mSettings.theme == "system") && mSettings.theme != "system") {
+                mSettings.theme = "system";
+                mGui.setTheme(mSettings.theme);
+                saveSettings();
+            }
+            ImGui::Separator();
+            if (Hd::Theme::menuItems(mSettings.theme)) {
+                mGui.setTheme(mSettings.theme);
+                saveSettings();
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Edit Themes...")) mThemeEditor.open = true;
+
+        row("Interface size");
+        char current[16];
+        snprintf(current, sizeof current, "%ld%%", std::lround(mSettings.uiScale * 100));
+        if (ImGui::BeginCombo("##ui-size", current)) {
+            for (int p : {75, 90, 100, 110, 125, 150, 175, 200}) {
+                char l[16];
+                snprintf(l, sizeof l, "%d%%", p);
+                if (ImGui::Selectable(l, std::lround(mSettings.uiScale * 100) == p)) {
+                    mSettings.uiScale = p / 100.0f;
+                    mGui.setUserScale(mSettings.uiScale);
+                    saveSettings();
+                }
+            }
+            ImGui::EndCombo();
+        }
+
+        row("Toolbar size");
+        constexpr const char* sizes[] = {"Small", "Medium", "Large"};
+        int size = static_cast<int>(Hd::getToolbarSize());
+        if (ImGui::Combo("##toolbar-size", &size, sizes, 3)) {
+            Hd::setToolbarSize(static_cast<Hd::ToolbarSize>(size));
+            saveSettings();
+        }
+
         Hd::FontRef ui = Hd::parseFontRef(mSettings.font), mono = Hd::parseFontRef(mSettings.monoFont);
-        bool changed = mUiPicker.gui("Interface", ui, mFontList, "System default");
-        changed |= mMonoPicker.gui("Monospace", mono, mFontList, "System default");
+        row("Interface font");
+        bool changed = mUiPicker.gui("##ui-font", ui, mFontList, "System default");
+        row("Monospace font");
+        changed |= mMonoPicker.gui("##mono-font", mono, mFontList, "System default");
         if (changed) {
             mSettings.font = Hd::toString(ui);
             mSettings.monoFont = Hd::toString(mono);
             applyFonts();
             saveSettings();
         }
-        float size = mSettings.fontSize;
-        if (ImGui::SliderFloat("Size", &size, 10, 28, "%.0f px")) {
-            mSettings.fontSize = std::round(size);
+        row("Font size");
+        float fontSize = mSettings.fontSize;
+        if (ImGui::SliderFloat("##font-size", &fontSize, 10, 28, "%.0f px")) {
+            mSettings.fontSize = std::round(fontSize);
             mGui.setFontSize(mSettings.fontSize);
         }
         if (ImGui::IsItemDeactivatedAfterEdit()) saveSettings();
-        for (const auto& e : mGui.fontErrors())
-            ImGui::TextColored({0.9f, 0.4f, 0.3f, 1}, "%s", e.c_str());
+        ImGui::EndTable();
+    }
+    for (const auto& e : mGui.fontErrors())
+        ImGui::TextColored({0.9f, 0.4f, 0.3f, 1}, "%s", e.c_str());
+
+    ImGui::SeparatorText("Viewing");
+    if (table("##viewing")) {
+        row("");
+        if (ImGui::Checkbox("Gaps between pages", &mSettings.pageGaps)) {
+            for (auto& t : mTabs) t->viewer->setPageGaps(mSettings.pageGaps);
+            saveSettings();
+        }
+
+        row("Overview columns");
+        if (ImGui::SliderInt("##overview-columns", &mSettings.overviewColumns, 3, 10))
+            for (auto& t : mTabs) t->viewer->setOverviewColumns(mSettings.overviewColumns);
+        if (ImGui::IsItemDeactivatedAfterEdit()) saveSettings();
+
+        row("");
+        if (ImGui::Checkbox("Smooth scrolling", &mSettings.animations)) {
+            for (auto& t : mTabs) t->viewer->options().animations = mSettings.animations;
+            saveSettings();
+        }
+        ImGui::EndTable();
+    }
+
+    ImGui::SeparatorText("Keyboard");
+    if (ImGui::Button("Configure Keyboard Shortcuts...")) mShortcutsOpen = true;
+    std::string keys = mActions.keysOf("settings.shortcuts");
+    if (!keys.empty()) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("%s", keys.c_str());
     }
     ImGui::End();
 }
@@ -884,7 +960,7 @@ void App::drawDialogs()
             saveSettings();
         }
     }
-    drawFontsWindow();
+    drawSettingsWindow();
     if (mShortcutsOpen) {
         ImGui::SetNextWindowSize({720 * mGui.scale(), 560 * mGui.scale()}, ImGuiCond_FirstUseEver);
         if (ImGui::Begin("Configure Keyboard Shortcuts", &mShortcutsOpen, ImGuiWindowFlags_NoCollapse)) {
