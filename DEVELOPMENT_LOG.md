@@ -833,3 +833,41 @@
   not tried by hand.
 - **Next steps:** Check the panels by hand, then move `ScrollMotion` and the gesture
   state into a header-only Hd component.
+
+## 2026-11-23 23:24 +03:00 — Move the scroll spring and autoscroll gesture into Hd
+
+- **Changes made:** `include/pdfview/ScrollMotion.h` is gone; the spring, the autoscroll
+  speed curve and the middle-button gesture state are Hd's header-only `Hd/Scroll.h`
+  (`deps/Hd/scroll/`, target `Hd_scroll`). The viewer's `mAutoscrolling` and
+  `mAutoscrollOrigin` became an `Hd::Autoscroll`, and `PanelScroll` uses the same class, so
+  latching and drag-release share one implementation. pdfview's ScrollMotion tests moved to
+  Hd (`hd_scroll_test`).
+- **How it works:** The viewer still handles the canvas press. A middle press starts the
+  gesture; `updateAutoscroll` calls `track` each frame, which latches on a release without
+  movement and stops after a drag. The viewer adds its own rule: a release outside the
+  canvas, or a deactivation without a release, stops it. The drag threshold is now 3 px ×
+  UI scale (was 3 px). Input ownership, the marker and page turns stay in pdfview.
+  `pdfview` links `Hd_scroll` publicly. When no target of that name exists (a host without
+  Hd, or with an older Hd), CMake adds `deps/Hd/scroll` on its own, which exposes no other
+  Hd headers.
+- **Testing:** All seven CTest targets passed with `HD_BUILD_TESTS=ON`, including the new
+  `hd_scroll_test` and the PanelScroll tests. A scratch host project with only Hd's
+  `deps/imgui` and `deps/glad` as its own targets, `PDFVIEW_BUILD_APP=OFF`, built and linked
+  the widget; its build files never reference Hd's main include directory. The app was not
+  tried by hand after this change.
+
+## 2026-11-23 23:28 +03:00 — Keep the scroll code in pdfview; defer the Hd extraction
+
+- **Changes made:** Reverted the uncommitted move of the scroll code into Hd (the previous
+  entry). Hd is unchanged. `include/pdfview/ScrollMotion.h` is back in the `pdfview`
+  namespace and now also holds `autoscrollSpeed` and the `Autoscroll` gesture, so the
+  document view and `PanelScroll` still share one gesture implementation. The
+  `Hd_scroll` target and the CMake fallback that added `deps/Hd/scroll` are gone.
+- **How it works:** Why: a host building only the library with its own ImGui and Glad
+  could do so without the Hd submodule checked out, and the move would have made the
+  checkout mandatory for one header. Only pdfview uses the code, and while the feel is
+  still being tuned each change would have needed an Hd commit, a pdfview commit and a
+  submodule bump. The header stays free of ImGui, so a later move is mechanical.
+- **Testing:** `tests/test_scroll_motion.cpp` is back, with new cases for the speed curve
+  and the gesture (latch on click, stop after a drag, threshold following the UI scale).
+  All CTest targets passed. Not tried by hand in the app.

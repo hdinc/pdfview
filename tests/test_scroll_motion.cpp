@@ -138,3 +138,44 @@ TEST_CASE("the first step after rest counts as one 60 Hz frame at most")
     CHECK(pa.y == pb.y);
     CHECK(pa.y < 80);
 }
+
+TEST_CASE("the autoscroll speed has a dead zone, a rise and a limit")
+{
+    CHECK(autoscrollSpeed(5, 1) == 0);
+    CHECK(autoscrollSpeed(-5, 1) == 0);
+    CHECK(autoscrollSpeed(50, 1) > 0);
+    CHECK(autoscrollSpeed(-50, 1) == -autoscrollSpeed(50, 1));
+    CHECK(autoscrollSpeed(200, 1) > autoscrollSpeed(100, 1));
+    CHECK(autoscrollSpeed(1e6, 1) == 5000);
+    CHECK(autoscrollSpeed(100, 2) == doctest::Approx(2 * autoscrollSpeed(50, 1)));
+}
+
+TEST_CASE("a middle click latches autoscroll and a drag stops on release")
+{
+    Autoscroll a;
+    a.start({100, 100});
+    a.track({101, 101}, true);
+    a.track({101, 101}, false);
+    CHECK(a.on());
+    a.track({100, 300}, false); // moving afterwards keeps it on
+    CHECK(a.on());
+    CHECK(a.velocity({100, 300}, 1).y > 0);
+    CHECK(a.velocity({100, 300}, 1).x == 0);
+    a.stop();
+    CHECK(!a.on());
+    CHECK(a.velocity({100, 300}, 1).y == 0);
+
+    Autoscroll b;
+    b.start({100, 100});
+    b.track({100, 200}, true);
+    CHECK(b.on());
+    b.track({100, 200}, false);
+    CHECK(!b.on());
+
+    // the drag threshold follows the UI scale
+    Autoscroll c;
+    c.start({0, 0});
+    c.track({0, 5}, true, 2);
+    c.track({0, 5}, false, 2);
+    CHECK(c.on());
+}

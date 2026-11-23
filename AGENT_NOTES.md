@@ -13,8 +13,9 @@ does no file I/O of its own and launches no processes.
   - `Viewer`: the widget, with selection, links, find, history and zoom modes.
   - `Actions`: key sequences and the action registry.
   - `Panels`: outline, thumbnails and the shortcut editor.
-  - `ScrollMotion.h`: the spring behind all scroll glides (no ImGui). `PanelScroll`: smooth wheel and
-    middle-button autoscroll for a scrolling ImGui window, plus the shared autoscroll curve and marker.
+  - `ScrollMotion.h`: the spring behind all scroll glides, the autoscroll speed curve and the middle-button
+    `Autoscroll` gesture (no ImGui). `PanelScroll`: smooth wheel and autoscroll for a scrolling ImGui
+    window, and the autoscroll marker.
   - `History.h`: the back/forward model.
 - `app/`: pdfview-app.
   - `App`: tabs, sidebar, toolbar, menus, reload and dialogs.
@@ -88,8 +89,8 @@ does no file I/O of its own and launches no processes.
 
 ## Current work
 - [Viewer interaction updates](doc/plans/2026-11-22-viewer-interaction-updates.md) is in progress.
-  Document scrolling is committed (227bd90). Sidebar smooth wheel and autoscroll (`PanelScroll`) are written and
-  unit-tested, uncommitted, awaiting a hand check. Next: extract the shared scroll code into Hd.
+  Sidebar scrolling is committed (0b8cc9c); the shared `Autoscroll` gesture is uncommitted, for review.
+  Next: safe session saves across two instances.
 
 [doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md).
 - All phases are written and tested on Windows, including after merging upstream Hd's themes and fonts.
@@ -101,5 +102,8 @@ does no file I/O of its own and launches no processes.
 - poppler's core private headers (unstable API).
 - nativefiledialog-extended (GTK build dependency on Linux).
 - Fixed-duration ease-out scroll glides: restarting the curve on each input makes the speed jump.
+- Moving the scroll code into Hd now (tried 2026-11-23): a host that brings its own ImGui and Glad
+  would then need the Hd submodule checked out, only pdfview uses it, and every tuning tweak would
+  need two commits and a submodule bump. Revisit when a second project needs it.
 - pdfview's own Breeze themes: dropped for upstream Hd's theme system. A Breeze look can come back as a
   custom JSON theme.

@@ -13,10 +13,11 @@
 
 #include <imgui.h>
 
+#include <pdfview/ScrollMotion.h>
+
 #include <pdfview/Actions.h>
 #include <pdfview/History.h>
 #include <pdfview/Layout.h>
-#include <pdfview/ScrollMotion.h>
 #include <pdfview/RenderWorker.h>
 
 namespace pdfview {
@@ -301,9 +302,8 @@ private:
     // fractional wheel delta at the edge of a non-continuous row
     double mFlipPush = 0;
     ScrollMotion mMotion; // the running glide, within the current row
-    bool mAutoscrolling = false;
+    Autoscroll mAuto;
     int mMenuPage = -1;
-    ImVec2 mAutoscrollOrigin{};
 
     // pages' links and text, read on the worker as pages come into view
     std::map<int, Info> mInfo;

@@ -1,9 +1,22 @@
 #pragma once
 
+// Smooth scrolling and middle-button autoscroll, without input handling or
+// drawing: the caller feeds in input samples, elapsed time and bounds, and
+// owns everything else (ImGui input ownership, the marker, page turns).
+// Free of ImGui, so it can move to Hd once a second project needs it.
+
+#include <algorithm>
+#include <cmath>
+
+namespace pdfview {
+
+struct ScrollVec {
+    double x = 0;
+    double y = 0;
+};
+
 // Smooth scrolling as a critically damped spring that pulls the position
-// towards a target. It does not depend on ImGui, so any scrolling surface
-// (the document, the sidebar panels) can drive it.
-//
+// towards a target.
 // - Velocity never jumps except by an explicit impulse, so new input taken
 //   mid-glide bends the motion instead of restarting a fixed curve.
 // - An input with impulse 1 (wheel notches, arrow keys) starts at full speed
@@ -14,20 +27,11 @@
 // - It integrates in small fixed substeps, so the path doesn't depend on the
 //   frame rate. The first step counts as one 60 Hz frame at most, since it
 //   can follow a long idle wait for input.
-
-#include <algorithm>
-#include <cmath>
-
-namespace pdfview {
-
 class ScrollMotion {
 public:
-    struct Vec {
-        double x = 0;
-        double y = 0;
-    };
+    using Vec = ScrollVec;
 
-    // pdfview's glides, in screen pixels at UI scale 1. Steps (wheel, lines)
+    // Suggested glides, in screen pixels at UI scale 1. Steps (wheel, lines)
     // start at full speed and decay: 90 % of the way in 130 ms, at rest in
     // about 300 ms. Screenfuls speed up from rest, cruise at the cap and
     // brake: a 900-pixel one is 90 % done in 280 ms and at rest in about
@@ -37,9 +41,9 @@ public:
     static constexpr double kMaxSpeed = 3200; // pixels per second
 
     struct Params {
-        double stiffness = 18; // 1/s: the decay rate; higher settles sooner
+        double stiffness = kStepStiffness; // 1/s: the decay rate; higher settles sooner
         double impulse = 1; // 0..1: how much of a new step becomes speed at once
-        double maxSpeed = 1600; // units per second
+        double maxSpeed = kMaxSpeed; // units per second
     };
 
     // How far ahead of the position the pull saturates. A target kept this
@@ -69,7 +73,7 @@ public:
         mActive = true;
     }
 
-    // Holds the target in place and drops any speed, e.g. at a hard stop.
+    // Drops the motion where it is.
     void stop()
     {
         mActive = false;
@@ -124,6 +128,64 @@ private:
     Vec mVel;
     bool mActive = false;
     bool mFresh = false; // no step taken yet
+};
+
+// Middle-button autoscroll speed, in pixels per second, for a pointer
+// `offset` pixels from where autoscroll started: a dead zone, then an
+// exponential rise to a limit. `scale` is the UI scale.
+inline double autoscrollSpeed(double offset, double scale)
+{
+    constexpr double initialSensitivity = 5;
+    constexpr double growthDistance = 200;
+    constexpr double speedLimit = 5000;
+    double beyondDeadZone = std::clamp(std::abs(offset) / scale - 10, 0.0, speedLimit / initialSensitivity);
+    double speed = initialSensitivity * growthDistance * std::expm1(beyondDeadZone / growthDistance);
+    return std::copysign(std::min(speed, speedLimit) * scale, offset);
+}
+
+// The middle-button autoscroll gesture. A press that is released without
+// moving latches it until the caller stops it (a click, the wheel, a key);
+// releasing after a drag stops it.
+class Autoscroll {
+public:
+    bool on() const { return mOn; }
+    ScrollVec origin() const { return mOrigin; }
+
+    // the button went down with the pointer at `at`
+    void start(ScrollVec at)
+    {
+        mOn = mHeld = true;
+        mDragged = false;
+        mOrigin = at;
+    }
+    void stop() { mOn = mHeld = false; }
+
+    // Each frame while on: the pointer, and whether the button that started
+    // it is still down. `scale` is the UI scale, for the drag threshold.
+    void track(ScrollVec pointer, bool buttonDown, double scale = 1)
+    {
+        if (!mOn || !mHeld) return;
+        double dx = pointer.x - mOrigin.x, dy = pointer.y - mOrigin.y;
+        double slop = 3 * scale;
+        if (dx * dx + dy * dy > slop * slop) mDragged = true;
+        if (!buttonDown) {
+            mHeld = false;
+            if (mDragged) mOn = false;
+        }
+    }
+
+    // the scroll velocity, in pixels per second, for the pointer at `pointer`
+    ScrollVec velocity(ScrollVec pointer, double scale) const
+    {
+        if (!mOn) return {};
+        return {autoscrollSpeed(pointer.x - mOrigin.x, scale), autoscrollSpeed(pointer.y - mOrigin.y, scale)};
+    }
+
+private:
+    ScrollVec mOrigin;
+    bool mOn = false;
+    bool mHeld = false; // the button that started it is still down
+    bool mDragged = false;
 };
 
 } // namespace pdfview

@@ -13,16 +13,6 @@ static float uiScale()
     return s > 0 ? s : 1.0f;
 }
 
-double autoscrollSpeed(double offset, double scale)
-{
-    constexpr double initialSensitivity = 5;
-    constexpr double growthDistance = 200;
-    constexpr double speedLimit = 5000;
-    double beyondDeadZone = std::clamp(std::abs(offset) / scale - 10, 0.0, speedLimit / initialSensitivity);
-    double speed = initialSensitivity * growthDistance * std::expm1(beyondDeadZone / growthDistance);
-    return std::copysign(std::min(speed, speedLimit) * scale, offset);
-}
-
 void drawAutoscrollMarker(ImDrawList* dl, ImVec2 c, float scale, bool horizontal)
 {
     float radius = 13 * scale;
@@ -43,14 +33,13 @@ void drawAutoscrollMarker(ImDrawList* dl, ImVec2 c, float scale, bool horizontal
 void PanelScroll::cancel()
 {
     mMotion.stop();
-    mAuto = false;
-    mHeld = false;
+    mAuto.stop();
 }
 
 bool PanelScroll::needsFrames() const
 {
     // a window no longer drawn has stopped
-    return (mMotion.active() || mAuto) && mFrame + 1 >= ImGui::GetFrameCount();
+    return (mMotion.active() || mAuto.on()) && mFrame + 1 >= ImGui::GetFrameCount();
 }
 
 void PanelScroll::update(bool animations)
@@ -69,49 +58,41 @@ void PanelScroll::update(bool animations)
     float scroll = w->Scroll.y;
     float maxScroll = w->ScrollMax.y;
     // ImGui rounds the scroll; something else moved it if it differs more.
-    if (std::abs(scroll - std::round(mPos)) > 1 || (!mMotion.active() && !mAuto)) {
+    if (std::abs(scroll - std::round(mPos)) > 1 || (!mMotion.active() && !mAuto.on())) {
         mMotion.stop();
         mPos = scroll;
     }
     bool hovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows);
     float sc = uiScale();
     float dt = std::min(io.DeltaTime, 0.05f);
+    ScrollVec pointer{io.MousePos.x, io.MousePos.y};
 
     bool stopped = false;
-    if (mAuto) {
+    if (mAuto.on()) {
         stopped = io.MouseWheel != 0 || io.MouseWheelH != 0 || ImGui::IsMouseClicked(ImGuiMouseButton_Left)
             || ImGui::IsMouseClicked(ImGuiMouseButton_Right) || ImGui::IsMouseClicked(ImGuiMouseButton_Middle);
         for (int key = ImGuiKey_NamedKey_BEGIN; key < ImGuiKey_GamepadStart && !stopped; ++key)
             if (ImGui::IsKeyPressed(static_cast<ImGuiKey>(key), false)) stopped = true;
-        if (mHeld && ImGui::IsMousePosValid()) {
-            ImVec2 d{io.MousePos.x - mOrigin.x, io.MousePos.y - mOrigin.y};
-            if (d.x * d.x + d.y * d.y > 9) mDragged = true;
-        }
-        if (mHeld && !ImGui::IsMouseDown(ImGuiMouseButton_Middle)) {
-            // A plain click latches autoscroll; releasing after a drag stops it.
-            mHeld = false;
-            if (mDragged) stopped = true;
-        }
-        if (stopped) mAuto = false;
+        if (stopped) mAuto.stop();
+        else if (ImGui::IsMousePosValid()) mAuto.track(pointer, ImGui::IsMouseDown(ImGuiMouseButton_Middle), sc);
+        if (!mAuto.on()) stopped = true;
     }
-    if (!mAuto && !stopped && hovered && maxScroll > 0 && ImGui::IsMouseClicked(ImGuiMouseButton_Middle)) {
+    if (!mAuto.on() && !stopped && hovered && maxScroll > 0 && ImGui::IsMouseClicked(ImGuiMouseButton_Middle)) {
         mMotion.stop();
-        mAuto = mHeld = true;
-        mDragged = false;
-        mOrigin = io.MousePos;
+        mAuto.start(pointer);
         mPos = scroll;
     }
-    if (mAuto) {
-        if (ImGui::IsMousePosValid())
-            mPos = std::clamp(mPos + autoscrollSpeed(io.MousePos.y - mOrigin.y, sc) * dt, 0.0, double(maxScroll));
+    if (mAuto.on()) {
+        if (ImGui::IsMousePosValid()) mPos = std::clamp(mPos + mAuto.velocity(pointer, sc).y * dt, 0.0, double(maxScroll));
         ImGui::SetScrollY(w, static_cast<float>(mPos));
         // The click that stops it goes to nothing else (buttons test ownership).
         ImGuiID id = w->GetID("##autoscroll");
         for (ImGuiKey k : {ImGuiKey_MouseLeft, ImGuiKey_MouseRight, ImGuiKey_MouseMiddle}) ImGui::SetKeyOwner(k, id);
         if (hovered) ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
         ImDrawList* dl = ImGui::GetForegroundDrawList(w->Viewport);
+        ScrollVec at = mAuto.origin();
         dl->PushClipRect(w->Rect().Min, w->Rect().Max, true);
-        drawAutoscrollMarker(dl, mOrigin, sc, false);
+        drawAutoscrollMarker(dl, {static_cast<float>(at.x), static_cast<float>(at.y)}, sc, false);
         dl->PopClipRect();
         return;
     }
@@ -131,7 +112,7 @@ void PanelScroll::update(bool animations)
         }
     }
     if (mMotion.active()) {
-        ScrollMotion::Vec pos{0, mPos};
+        ScrollVec pos{0, mPos};
         if (animations) {
             mMotion.step(pos, dt, 0.5);
         } else {

@@ -6,11 +6,6 @@
 
 namespace pdfview {
 
-// Middle-button autoscroll speed, in pixels per second, for a pointer
-// `offset` pixels from where autoscroll started: a dead zone, then an
-// exponential rise to a limit. `scale` is the UI scale.
-double autoscrollSpeed(double offset, double scale);
-
 // The autoscroll marker centred on `at`: vertical arrows, plus horizontal
 // ones when `horizontal`. The caller sets the clip rectangle.
 void drawAutoscrollMarker(ImDrawList* dl, ImVec2 at, float scale, bool horizontal);
@@ -37,13 +32,10 @@ public:
 
 private:
     ScrollMotion mMotion;
+    Autoscroll mAuto;
     double mPos = 0; // the scroll set last, unrounded
     ImGuiID mWindow = 0;
     int mFrame = -1;
-    bool mAuto = false;
-    bool mHeld = false; // the middle button that started it is down
-    bool mDragged = false;
-    ImVec2 mOrigin{};
 };
 
 } // namespace pdfview
