@@ -106,6 +106,7 @@ does no file I/O of its own and launches no processes.
 
 ## Docs
 - [doc/plans/](doc/plans/): implementation plans, dated.
+- [doc/todo.md](doc/todo.md): known issues and ideas not planned yet (toolbar overflow menu, MSYS-style paths).
 
 ## Current work
 - [View fit, page gaps, drag zoom, settings window and toolbar](doc/plans/2026-11-24-view-fit-zoom-settings.md):
