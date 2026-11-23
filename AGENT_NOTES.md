@@ -95,9 +95,8 @@ does no file I/O of its own and launches no processes.
 - [doc/plans/](doc/plans/): implementation plans, dated.
 
 ## Current work
-- [Viewer interaction updates](doc/plans/2026-11-22-viewer-interaction-updates.md) is in progress.
-  Scrolling is committed (786c5a4). Safe settings saves across windows are done and tested, uncommitted, for
-  review (Hd: `Files.h`; pdfview: `Settings::saveMerged`). Next: move shortcut editing to Hd.
+- [Viewer interaction updates](doc/plans/2026-11-22-viewer-interaction-updates.md) is done (last commits: Hd
+  3191ff6, pdfview bd53f4d). Not yet tested on Linux.
 
 [doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md).
 - All phases are written and tested on Windows, including after merging upstream Hd's themes and fonts.
@@ -109,6 +108,8 @@ does no file I/O of its own and launches no processes.
 - poppler's core private headers (unstable API).
 - nativefiledialog-extended (GTK build dependency on Linux).
 - Fixed-duration ease-out scroll glides: restarting the curve on each input makes the speed jump.
+- Moving shortcut editing (editor, registry, key parser) into Hd (dropped 2026-11-23): the library would then
+  depend on Hd, or keep only action descriptions and lose its own keyboard mode; nothing else needs it yet.
 - Moving the scroll code into Hd now (tried 2026-11-23): a host that brings its own ImGui and Glad
   would then need the Hd submodule checked out, only pdfview uses it, and every tuning tweak would
   need two commits and a submodule bump. Revisit when a second project needs it.
