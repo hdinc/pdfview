@@ -2,6 +2,7 @@
 
 #include <pdfview/Actions.h>
 #include <pdfview/History.h>
+#include <pdfview/Viewer.h>
 
 using namespace pdfview;
 
@@ -122,6 +123,61 @@ TEST_CASE("Actions: conflicts, save and load")
     CHECK(toString(b.find("first")->keys[1]) == "G, G"); // bad line skipped
     b.resetAll();
     CHECK(b.save().empty());
+}
+
+TEST_CASE("Viewer: default shortcuts")
+{
+    Actions a;
+    Viewer::registerActions(a, [] { return static_cast<Viewer*>(nullptr); });
+    // the viewer's part of the agreed table (2026-11-24); the app adds its own
+    struct Row {
+        const char* id;
+        const char* primary;
+        const char* alternate;
+    };
+    const Row table[] = {
+        {"view.scroll_up", "K", "Up"},
+        {"view.scroll_down", "J", "Down"},
+        {"view.scroll_left", "", "Left"},
+        {"view.scroll_right", "", "Right"},
+        {"view.page_down", "Space", ""},
+        {"view.page_up", "Shift+Space", ""},
+        {"go.next_page", "L", "PgDown"},
+        {"go.prev_page", "H", "PgUp"},
+        {"go.first", "G, G", "Home"},
+        {"go.last", "Shift+G", "End"},
+        {"go.back", "Ctrl+O", "Alt+Left"},
+        {"go.forward", "Ctrl+I", "Alt+Right"},
+        {"go.page", "Ctrl+G", ""},
+        {"zoom.in", "Ctrl+=", "Ctrl+NumPlus"},
+        {"zoom.out", "Ctrl+-", "Ctrl+Num-"},
+        {"zoom.fit_width", "S", ""},
+        {"zoom.fit_page", "A", ""},
+        {"zoom.actual", "=", ""},
+        {"view.single", "I", ""},
+        {"view.facing", "", ""},
+        {"view.overview", "O", ""},
+        {"view.continuous", "C", ""},
+        {"tool.browse", "Ctrl+1", ""},
+        {"tool.text", "Ctrl+2", ""},
+        {"edit.copy", "Ctrl+C", ""},
+        {"edit.select_all", "Ctrl+A", ""},
+        {"edit.deselect", "Esc", ""},
+        {"find.find", "/", "Ctrl+F"},
+        {"find.next", "N", "Enter"},
+        {"find.prev", "Shift+N", "Shift+Enter"},
+        {"find.whole_words", "", ""},
+    };
+    for (const Row& r : table) {
+        Action* act = a.find(r.id);
+        REQUIRE_MESSAGE(act, r.id);
+        CHECK_MESSAGE(toString(act->defaults[0]) == r.primary, r.id);
+        CHECK_MESSAGE(toString(act->defaults[1]) == r.alternate, r.id);
+    }
+    // no two actions share a default sequence
+    for (const auto& act : a.all())
+        for (const KeySeq& k : act->defaults)
+            if (!k.empty()) CHECK_MESSAGE(a.conflicts(k, act.get()).empty(), act->id << " " << toString(k));
 }
 
 TEST_CASE("History: back and forward")

@@ -1091,3 +1091,48 @@
 - **Testing:** All nine CTest targets passed, with Hd's new `hd_platform_test`. pdfview-app
   started from PowerShell (no MSYS path conversion) with a `/c/Users/...` path opened the
   file and saved it as `C:\Users\...`.
+
+## 2026-11-24 00:58 +03:00 — Vi-style default shortcuts
+
+- **Changes made:** New defaults, as requested: L and H (alternates) for Next and Previous
+  Page, beside Ctrl+PgDown/Ctrl+PgUp; Ctrl+O and Ctrl+I (primary) for Back and Forward, with
+  Alt+Left/Right kept as alternates. The keyboards' browser Back/Forward keys are no longer
+  bound, since each action has two slots. Open... has no default key any more (it was
+  Ctrl+O; decided in review); it stays in the File menu and can be bound in the shortcut
+  editor. K/J, G G, Shift+G, /, O, I, Space and Shift+Space were already defaults.
+- **How it works:** Saved shortcuts store only differences from the defaults, so the new
+  defaults reach everyone who hasn't rebound these actions; a user binding that now clashes
+  shows up in the shortcut editor's conflict check. The empty-window hint names Open's
+  current key, or the File menu when it has none, instead of a fixed "Ctrl+O".
+- **Testing:** New "Viewer: default shortcuts" test registers the viewer's actions and checks
+  the requested keys and that no two actions share a default sequence. The app's own defaults
+  were checked against them by hand (no overlap). All nine CTest targets passed.
+
+## 2026-11-24 01:01 +03:00 — Vi-style keys as the primary shortcuts
+
+- **Changes made:** K, J, L, H, G G, Shift+G and / are now the primary keys of Scroll Up,
+  Scroll Down, Next Page, Previous Page, Beginning and End of the Document and Find..., with
+  Up, Down, Ctrl+PgDown, Ctrl+PgUp, Home, End and Ctrl+F as their alternates (requested in
+  review). O, I, Space, Shift+Space, Ctrl+O and Ctrl+I were already primary. Fit Page gets
+  A as its primary key, with Ctrl+9 as the alternate. Menus and tooltips show the primary
+  key, so they now show these.
+- **Testing:** "Viewer: default shortcuts" checks the new slots. All CTest targets passed.
+
+## 2026-11-24 01:13 +03:00 — Default shortcuts from the review table
+
+- **Changes made:** Applied the full shortcut table given in review. Against the previous
+  defaults: Scroll Left/Right keep Left/Right only as alternates; Scroll Page Down/Up lost
+  PgDown/PgUp, which became the alternates of Next/Previous Page (replacing Ctrl+PgDown/
+  Ctrl+PgUp); Fit Width lost Ctrl+0 and Fit Page Ctrl+9; Actual Size gets =; Show Sidebar
+  moves from F7 to Ctrl+Space; Text Selection from Ctrl+4 to Ctrl+2; Copy lost Ctrl+Ins;
+  Find Next/Previous use Enter/Shift+Enter instead of F3/Shift+F3 as alternates. The rest
+  was already as listed.
+- **How it works:** Enter reaches the shortcuts only when no text field has the keyboard
+  (`Actions::update`), so Enter in the find field and the page box keeps its own meaning.
+  PgDown/PgUp now turn pages instead of scrolling a screenful; Space/Shift+Space still
+  scroll and still glide while held.
+- **Testing:** "Viewer: default shortcuts" now checks every viewer action's primary and
+  alternate keys against the table, and that no two defaults clash. The app's own rows
+  (Show Sidebar, file, tab, bookmark and settings actions) were checked by reading
+  `App::addActions`. All nine CTest targets passed. The new keys were not pressed in the
+  running app.

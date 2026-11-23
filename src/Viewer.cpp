@@ -1851,29 +1851,29 @@ void Viewer::registerActions(Actions& acts, std::function<Viewer*()> current)
             return v && v->scrollHeld(dir * v->screenful());
         };
     };
-    add("view.scroll_up", "Scroll Up", "Navigation", "Up", "K", [](Viewer& v) { v.scrollStep(0, -verticalLine * uiScale(), Glide::Step); })
+    add("view.scroll_up", "Scroll Up", "Navigation", "K", "Up", [](Viewer& v) { v.scrollStep(0, -verticalLine * uiScale(), Glide::Step); })
         .hold = held(-verticalLine);
-    add("view.scroll_down", "Scroll Down", "Navigation", "Down", "J", [](Viewer& v) { v.scrollStep(0, verticalLine * uiScale(), Glide::Step); })
+    add("view.scroll_down", "Scroll Down", "Navigation", "J", "Down", [](Viewer& v) { v.scrollStep(0, verticalLine * uiScale(), Glide::Step); })
         .hold = held(verticalLine);
-    add("view.scroll_left", "Scroll Left", "Navigation", "Left", "", [](Viewer& v) { v.scrollStep(-horizontalLine * uiScale(), 0, Glide::Step); });
-    add("view.scroll_right", "Scroll Right", "Navigation", "Right", "", [](Viewer& v) { v.scrollStep(horizontalLine * uiScale(), 0, Glide::Step); });
-    add("view.page_down", "Scroll Page Down", "Navigation", "Space", "PgDown", [](Viewer& v) { v.scrollPage(1); })
+    add("view.scroll_left", "Scroll Left", "Navigation", "", "Left", [](Viewer& v) { v.scrollStep(-horizontalLine * uiScale(), 0, Glide::Step); });
+    add("view.scroll_right", "Scroll Right", "Navigation", "", "Right", [](Viewer& v) { v.scrollStep(horizontalLine * uiScale(), 0, Glide::Step); });
+    add("view.page_down", "Scroll Page Down", "Navigation", "Space", "", [](Viewer& v) { v.scrollPage(1); })
         .hold = heldPage(1);
-    add("view.page_up", "Scroll Page Up", "Navigation", "Shift+Space", "PgUp", [](Viewer& v) { v.scrollPage(-1); })
+    add("view.page_up", "Scroll Page Up", "Navigation", "Shift+Space", "", [](Viewer& v) { v.scrollPage(-1); })
         .hold = heldPage(-1);
-    add("go.next_page", "Next Page", "Navigation", "Ctrl+PgDown", "", [](Viewer& v) { v.nextPage(); });
-    add("go.prev_page", "Previous Page", "Navigation", "Ctrl+PgUp", "", [](Viewer& v) { v.prevPage(); });
-    add("go.first", "Beginning of the Document", "Navigation", "Home", "G, G", [](Viewer& v) { v.first(); });
-    add("go.last", "End of the Document", "Navigation", "End", "Shift+G", [](Viewer& v) { v.last(); });
-    add("go.back", "Back", "Navigation", "Alt+Left", "Back", [](Viewer& v) { v.back(); });
-    add("go.forward", "Forward", "Navigation", "Alt+Right", "Forward", [](Viewer& v) { v.forward(); });
+    add("go.next_page", "Next Page", "Navigation", "L", "PgDown", [](Viewer& v) { v.nextPage(); });
+    add("go.prev_page", "Previous Page", "Navigation", "H", "PgUp", [](Viewer& v) { v.prevPage(); });
+    add("go.first", "Beginning of the Document", "Navigation", "G, G", "Home", [](Viewer& v) { v.first(); });
+    add("go.last", "End of the Document", "Navigation", "Shift+G", "End", [](Viewer& v) { v.last(); });
+    add("go.back", "Back", "Navigation", "Ctrl+O", "Alt+Left", [](Viewer& v) { v.back(); });
+    add("go.forward", "Forward", "Navigation", "Ctrl+I", "Alt+Right", [](Viewer& v) { v.forward(); });
     add("go.page", "Go to Page...", "Navigation", "Ctrl+G", "", [](Viewer& v) { v.focusPageBox(); });
 
     add("zoom.in", "Zoom In", "Zoom", "Ctrl+=", "Ctrl+NumPlus", [](Viewer& v) { v.zoomIn(); });
     add("zoom.out", "Zoom Out", "Zoom", "Ctrl+-", "Ctrl+Num-", [](Viewer& v) { v.zoomOut(); });
-    add("zoom.fit_width", "Fit Width", "Zoom", "S", "Ctrl+0", [](Viewer& v) { v.fitWidth(); }).checked = [current] { return current() && current()->zoomMode() == ZoomMode::FitWidth; };
-    add("zoom.fit_page", "Fit Page", "Zoom", "Ctrl+9", "", [](Viewer& v) { v.fitPage(); }).checked = [current] { return current() && current()->zoomMode() == ZoomMode::FitPage; };
-    add("zoom.actual", "Actual Size", "Zoom", "", "", [](Viewer& v) { v.setZoom(uiScale()); });
+    add("zoom.fit_width", "Fit Width", "Zoom", "S", "", [](Viewer& v) { v.fitWidth(); }).checked = [current] { return current() && current()->zoomMode() == ZoomMode::FitWidth; };
+    add("zoom.fit_page", "Fit Page", "Zoom", "A", "", [](Viewer& v) { v.fitPage(); }).checked = [current] { return current() && current()->zoomMode() == ZoomMode::FitPage; };
+    add("zoom.actual", "Actual Size", "Zoom", "=", "", [](Viewer& v) { v.setZoom(uiScale()); });
 
     auto mode = [current](int cols) {
         return [current, cols] {
@@ -1899,9 +1899,9 @@ void Viewer::registerActions(Actions& acts, std::function<Viewer*()> current)
     }).checked = [current] { return current() && current()->viewMode().continuous; };
 
     add("tool.browse", "Browse", "Tools", "Ctrl+1", "", [](Viewer& v) { v.setTool(Tool::Browse); }).checked = [current] { return current() && current()->tool() == Tool::Browse; };
-    add("tool.text", "Text Selection", "Tools", "Ctrl+4", "", [](Viewer& v) { v.setTool(Tool::Text); }).checked = [current] { return current() && current()->tool() == Tool::Text; };
+    add("tool.text", "Text Selection", "Tools", "Ctrl+2", "", [](Viewer& v) { v.setTool(Tool::Text); }).checked = [current] { return current() && current()->tool() == Tool::Text; };
 
-    add("edit.copy", "Copy", "Edit", "Ctrl+C", "Ctrl+Ins", [](Viewer& v) { v.copy(); });
+    add("edit.copy", "Copy", "Edit", "Ctrl+C", "", [](Viewer& v) { v.copy(); });
     add("edit.select_all", "Select All (Page)", "Edit", "Ctrl+A", "", [](Viewer& v) { v.selectAll(); });
     add("edit.deselect", "Clear Selection", "Edit", "Esc", "", [](Viewer& v) {
         if (v.findBarShown())
@@ -1910,9 +1910,9 @@ void Viewer::registerActions(Actions& acts, std::function<Viewer*()> current)
             v.clearSelection();
     });
 
-    add("find.find", "Find...", "Find", "Ctrl+F", "/", [](Viewer& v) { v.showFindBar(); });
-    add("find.next", "Find Next", "Find", "N", "F3", [](Viewer& v) { v.findNext(); });
-    add("find.prev", "Find Previous", "Find", "Shift+N", "Shift+F3", [](Viewer& v) { v.findPrev(); });
+    add("find.find", "Find...", "Find", "/", "Ctrl+F", [](Viewer& v) { v.showFindBar(); });
+    add("find.next", "Find Next", "Find", "N", "Enter", [](Viewer& v) { v.findNext(); });
+    add("find.prev", "Find Previous", "Find", "Shift+N", "Shift+Enter", [](Viewer& v) { v.findPrev(); });
     add("find.whole_words", "Whole Words", "Find", "", "", [](Viewer& v) {
         v.setFindBarFlags(v.findFlags() ^ FindWholeWords);
     }).checked = [current] { return current() && (current()->findFlags() & FindWholeWords) != 0; };

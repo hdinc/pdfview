@@ -71,6 +71,10 @@ does no file I/O of its own and launches no processes.
 - Thumbnail filtering is per document and replaces the grid once after a 300 ms debounce.
 - In non-continuous view, one wheel notch at the page edge turns the page.
 - Scroll glides use `ScrollMotion` (`include/pdfview/ScrollMotion.h`), a critically damped spring: steps start at full speed and decay, screenfuls ease in and brake, and new input never makes the speed jump. The cap is 3,200 px/s at scale 1. Document-end jumps and non-continuous row turns are immediate.
+- Default keys follow the table agreed on 2026-11-24 (vi-like keys first): J/K scroll, H/L or PgUp/PgDown pages,
+  G G / Shift+G ends, / find, N / Shift+N (or Enter / Shift+Enter) next/previous match, O overview, I single, A fit
+  page, S fit width, = actual size, Ctrl+O/Ctrl+I back/forward, Ctrl+Space sidebar. Open... has no default key.
+  "Viewer: default shortcuts" in tests/test_actions.cpp holds the viewer's part of the table.
 - Held scroll keys (J/K, Up/Down, Space/PgDown, Shift+Space/PgUp) share `Viewer::scrollHeld`: one step per ImGui key-repeat interval within the speed cap (lines 1,800 px/s, screenfuls 3,200 px/s), with the destination kept just over one braking distance ahead, so release stops like the end of one press. With animations off, they use plain key repeat.
 - Sidebar panels (Thumbnails, Contents, Bookmarks) take the wheel from ImGui by setting `NoScrollWithMouse` on their
   window after Begin, and run it through `PanelScroll`. Autoscroll owns the mouse buttons while on, so the stopping

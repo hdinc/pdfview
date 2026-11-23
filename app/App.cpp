@@ -256,7 +256,7 @@ void App::addActions()
 {
     Viewer::registerActions(mActions, [this] { return activeViewer(); });
     auto has = [this] { return active() != nullptr; };
-    mActions.add("file.open", "Open...", "File", "Ctrl+O", "", [this] { open(Hd::Platform::openFilesDialog(mWindow.Id(), "Open", {{"PDF documents", "*.pdf;*.PDF"}})); });
+    mActions.add("file.open", "Open...", "File", "", "", [this] { open(Hd::Platform::openFilesDialog(mWindow.Id(), "Open", {{"PDF documents", "*.pdf;*.PDF"}})); });
     mActions.add("file.reload", "Reload", "File", "F5", "", [this] {
         if (Tab* t = active()) reload(*t);
     }).enabled = has;
@@ -281,7 +281,7 @@ void App::addActions()
     };
     mActions.add("tab.next", "Next Tab", "Tabs", "Ctrl+Tab", "", cycle(1));
     mActions.add("tab.prev", "Previous Tab", "Tabs", "Ctrl+Shift+Tab", "", cycle(-1));
-    mActions.add("view.sidebar", "Show Sidebar", "View", "F7", "", [this] { mSettings.sidebar = !mSettings.sidebar; }).checked = [this] { return mSettings.sidebar; };
+    mActions.add("view.sidebar", "Show Sidebar", "View", "Ctrl+Space", "", [this] { mSettings.sidebar = !mSettings.sidebar; }).checked = [this] { return mSettings.sidebar; };
     mActions.add("view.page_gaps", "Gaps Between Pages", "View Mode", "", "", [this] {
         mSettings.pageGaps = !mSettings.pageGaps;
         for (auto& t : mTabs) t->viewer->setPageGaps(mSettings.pageGaps);
@@ -706,11 +706,13 @@ void App::drawWorkspace()
     const ImVec2 origin = ImGui::GetCursorScreenPos();
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     if (mTabs.empty()) {
-        const char* msg = "Open a PDF with Ctrl+O, or drop one here.";
-        ImVec2 ts = ImGui::CalcTextSize(msg);
+        // the Open key as bound now, if any
+        std::string keys = mActions.keysOf("file.open");
+        std::string msg = keys.empty() ? "Open a PDF from the File menu, or drop one here." : "Open a PDF with " + keys + ", or drop one here.";
+        ImVec2 ts = ImGui::CalcTextSize(msg.c_str());
         ImGui::SetCursorScreenPos({origin.x + std::max(0.0f, (avail.x - ts.x) / 2),
                                    origin.y + std::max(0.0f, (avail.y - ts.y) / 2)});
-        ImGui::TextDisabled("%s", msg);
+        ImGui::TextDisabled("%s", msg.c_str());
         mActive = 0;
         mSelect = 0;
         return;
