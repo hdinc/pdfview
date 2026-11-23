@@ -51,6 +51,7 @@ pdfview_warnings(pdfview_core)
 
 add_library(pdfview STATIC
     src/Actions.cpp
+    src/PanelScroll.cpp
     src/Panels.cpp
     src/Viewer.cpp
 )

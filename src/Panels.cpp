@@ -88,6 +88,7 @@ void OutlinePanel::draw(Viewer& v, ImFont* boldFont)
     ImGui::PushStyleVar(ImGuiStyleVar_TreeLinesSize, std::max(1.0f, ImGui::GetStyle().TreeLinesSize));
     ImGui::PushStyleVarY(ImGuiStyleVar_CellPadding, 0);
     if (ImGui::BeginTable("##outline", 2, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersOuter, ImGui::GetContentRegionAvail())) {
+        mScroll.update(v.options().animations);
         ImGui::TableSetupColumn("title", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn("page", ImGuiTableColumnFlags_WidthFixed, labelW);
         bool filtering = mFilter[0] != 0;
@@ -314,6 +315,7 @@ void ThumbnailPanel::draw(Viewer& v)
         ImGui::PopID();
         return;
     }
+    mScroll.update(v.options().animations);
     // Ctrl+wheel and the context menu update the next layout.
     bool hoveredGrid = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows);
     if (mLastViewer != &v || io.AppFocusLost) mColumnWheelRemainder = 0;
@@ -333,8 +335,6 @@ void ThumbnailPanel::draw(Viewer& v)
         }
     } else {
         mColumnWheelRemainder = 0;
-        if (hoveredGrid && io.MouseWheel != 0)
-            ImGui::SetScrollY(ImGui::GetScrollY() - io.MouseWheel * ImGui::GetTextLineHeight() * 5);
     }
     if (ImGui::BeginPopupContextWindow("##thumbmenu", ImGuiPopupFlags_MouseButtonRight)) {
         ImGui::MenuItem("Show Page Numbers", nullptr, &showLabels);
@@ -379,7 +379,11 @@ void ThumbnailPanel::draw(Viewer& v)
         }
     }
     sy = std::clamp(std::round(sy), 0.0f, maxScroll);
-    if (sy != actualScroll) ImGui::SetScrollY(sy);
+    if (sy != actualScroll) {
+        // following the document or keeping the anchor overrides a glide
+        ImGui::SetScrollY(sy);
+        mScroll.cancel();
+    }
     if (!anchored && (follow || anchorRow == rows || std::abs(sy - mLastScroll) >= 1))
         mAnchorPage = -1;
     mLastScroll = sy;

@@ -4,6 +4,7 @@
 #include <vector>
 
 #include <pdfview/Actions.h>
+#include <pdfview/PanelScroll.h>
 #include <pdfview/Viewer.h>
 
 namespace pdfview {
@@ -15,8 +16,10 @@ class OutlinePanel {
 public:
     // Fills the rest of the current window. Pass the current UI bold face if available.
     void draw(Viewer& v, ImFont* boldFont = nullptr);
+    bool needsFrames() const { return mScroll.needsFrames(); }
 
 private:
+    PanelScroll mScroll;
     char mFilter[128] = "";
     const OutlineItem* mLastCurrent = nullptr;
 };
@@ -28,12 +31,14 @@ private:
 class ThumbnailPanel {
 public:
     void draw(Viewer& v);
+    bool needsFrames() const { return mScroll.needsFrames(); }
     float size = 150; // thumbnail width in pixels at scale 1 (the style's FontScaleDpi)
     bool showLabels = true;
     bool gaps = true;
 
 private:
     void updateDrag(Viewer& v);
+    PanelScroll mScroll;
     int mLastCurrent = -1;
     int mLastCols = 0;
     float mLastCellWidth = 0;

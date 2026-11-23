@@ -27,6 +27,15 @@ public:
         double y = 0;
     };
 
+    // pdfview's glides, in screen pixels at UI scale 1. Steps (wheel, lines)
+    // start at full speed and decay: 90 % of the way in 130 ms, at rest in
+    // about 300 ms. Screenfuls speed up from rest, cruise at the cap and
+    // brake: a 900-pixel one is 90 % done in 280 ms and at rest in about
+    // 500 ms. A held page key stops about 200 pixels after release.
+    static constexpr double kStepStiffness = 18; // per second
+    static constexpr double kPageStiffness = 32;
+    static constexpr double kMaxSpeed = 3200; // pixels per second
+
     struct Params {
         double stiffness = 18; // 1/s: the decay rate; higher settles sooner
         double impulse = 1; // 0..1: how much of a new step becomes speed at once

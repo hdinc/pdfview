@@ -1,4 +1,5 @@
 #include <pdfview/Viewer.h>
+#include <pdfview/PanelScroll.h>
 
 #include <algorithm>
 #include <array>
@@ -16,14 +17,9 @@ static constexpr auto kSettle = std::chrono::milliseconds(150);
 // the scrollbar follows the style, so it scales with the UI
 static float scrollbarW() { return ImGui::GetStyle().ScrollbarSize; }
 static constexpr double kWheelStep = 80; // pixels per wheel notch at scale 1
-// Glides follow ScrollMotion's spring. Steps (wheel, lines) start at full
-// speed and decay: 90 % of the way in 130 ms, at rest in about 300 ms.
-// Screenfuls speed up from rest, cruise at the cap and brake: a 900-pixel
-// one is 90 % done in 280 ms and at rest in about 500 ms. A held page key
-// stops about 200 pixels after release.
-static constexpr double kStepStiffness = 18; // per second
-static constexpr double kPageStiffness = 32;
-static constexpr double kMaxScrollSpeed = 3200; // screen pixels per second at scale 1
+static constexpr double kStepStiffness = ScrollMotion::kStepStiffness;
+static constexpr double kPageStiffness = ScrollMotion::kPageStiffness;
+static constexpr double kMaxScrollSpeed = ScrollMotion::kMaxSpeed; // screen pixels per second at scale 1
 
 // the UI's scale (the host's DPI scale, 1 when it sets none): steps and
 // "100%" follow it, so the document looks the same size on any monitor
@@ -1484,14 +1480,7 @@ void Viewer::updateAutoscroll()
     cancelScroll();
     const ImGuiIO& io = ImGui::GetIO();
     double scale = uiScale();
-    auto distance = [&](double offset) {
-        constexpr double initialSensitivity = 5;
-        constexpr double growthDistance = 200;
-        constexpr double speedLimit = 5000;
-        double beyondDeadZone = std::clamp(std::abs(offset) / scale - 10, 0.0, speedLimit / initialSensitivity);
-        double speed = initialSensitivity * growthDistance * std::expm1(beyondDeadZone / growthDistance);
-        return std::copysign(std::min(speed, speedLimit) * scale * std::min(io.DeltaTime, 0.05f), offset);
-    };
+    auto distance = [&](double offset) { return autoscrollSpeed(offset, scale) * std::min(io.DeltaTime, 0.05f); };
     double dx = distance(io.MousePos.x - mAutoscrollOrigin.x);
     double dy = distance(io.MousePos.y - mAutoscrollOrigin.y);
     mView.x += dx / mView.zoom;
@@ -1501,22 +1490,8 @@ void Viewer::updateAutoscroll()
 
 void Viewer::drawAutoscrollMarker(ImDrawList* dl, ImVec2 origin, ImVec2 size) const
 {
-    float scale = static_cast<float>(uiScale());
-    float radius = 13 * scale;
-    float arrow = 4 * scale;
-    float offset = 5 * scale;
-    ImVec2 c = mAutoscrollOrigin;
-    ImU32 ink = ImGui::GetColorU32(ImGuiCol_Text);
     dl->PushClipRect(origin, {origin.x + size.x, origin.y + size.y}, true);
-    dl->AddCircleFilled(c, radius, ImGui::GetColorU32(ImGuiCol_WindowBg));
-    dl->AddCircle(c, radius, ink, 0, scale);
-    dl->AddCircleFilled(c, 1.6f * scale, ink);
-    dl->AddTriangleFilled({c.x, c.y - offset - arrow}, {c.x - arrow, c.y - offset}, {c.x + arrow, c.y - offset}, ink);
-    dl->AddTriangleFilled({c.x, c.y + offset + arrow}, {c.x - arrow, c.y + offset}, {c.x + arrow, c.y + offset}, ink);
-    if (mLayout.width > mView.w / mView.zoom) {
-        dl->AddTriangleFilled({c.x - offset - arrow, c.y}, {c.x - offset, c.y - arrow}, {c.x - offset, c.y + arrow}, ink);
-        dl->AddTriangleFilled({c.x + offset + arrow, c.y}, {c.x + offset, c.y - arrow}, {c.x + offset, c.y + arrow}, ink);
-    }
+    pdfview::drawAutoscrollMarker(dl, mAutoscrollOrigin, static_cast<float>(uiScale()), mLayout.width > mView.w / mView.zoom);
     dl->PopClipRect();
 }
 

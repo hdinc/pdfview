@@ -13,6 +13,8 @@ does no file I/O of its own and launches no processes.
   - `Viewer`: the widget, with selection, links, find, history and zoom modes.
   - `Actions`: key sequences and the action registry.
   - `Panels`: outline, thumbnails and the shortcut editor.
+  - `ScrollMotion.h`: the spring behind all scroll glides (no ImGui). `PanelScroll`: smooth wheel and
+    middle-button autoscroll for a scrolling ImGui window, plus the shared autoscroll curve and marker.
   - `History.h`: the back/forward model.
 - `app/`: pdfview-app.
   - `App`: tabs, sidebar, toolbar, menus, reload and dialogs.
@@ -65,6 +67,9 @@ does no file I/O of its own and launches no processes.
 - In non-continuous view, one wheel notch at the page edge turns the page.
 - Scroll glides use `ScrollMotion` (`include/pdfview/ScrollMotion.h`), a critically damped spring: steps start at full speed and decay, screenfuls ease in and brake, and new input never makes the speed jump. The cap is 3,200 px/s at scale 1. Document-end jumps and non-continuous row turns are immediate.
 - Held scroll keys (J/K, Up/Down, Space/PgDown, Shift+Space/PgUp) share `Viewer::scrollHeld`: one step per ImGui key-repeat interval within the speed cap (lines 1,800 px/s, screenfuls 3,200 px/s), with the destination kept just over one braking distance ahead, so release stops like the end of one press. With animations off, they use plain key repeat.
+- Sidebar panels (Thumbnails, Contents, Bookmarks) take the wheel from ImGui by setting `NoScrollWithMouse` on their
+  window after Begin, and run it through `PanelScroll`. Autoscroll owns the mouse buttons while on, so the stopping
+  click reaches no item.
 - Middle-click toggles autoscroll. A middle drag autoscrolls until release. In non-continuous view, autoscroll stays in the current row.
 - Double-click word selection and triple-click line selection are limited to Text Selection mode.
 - The page context menu uses standard ImGui styling and Font Awesome icons. Fit Width leaves Overview for the previous normal layout.
@@ -83,7 +88,8 @@ does no file I/O of its own and launches no processes.
 
 ## Current work
 - [Viewer interaction updates](doc/plans/2026-11-22-viewer-interaction-updates.md) is in progress.
-  Document scroll animations were rewritten on the spring model and are ready for review. Next, add smooth scrolling and autoscroll to the sidebar.
+  Document scrolling is committed (227bd90). Sidebar smooth wheel and autoscroll (`PanelScroll`) are written and
+  unit-tested, uncommitted, awaiting a hand check. Next: extract the shared scroll code into Hd.
 
 [doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md).
 - All phases are written and tested on Windows, including after merging upstream Hd's themes and fonts.

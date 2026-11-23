@@ -796,3 +796,40 @@
   first second and coasts 111 px in 233 ms on release (was about 100 px in 300 ms); held
   Space is unchanged (3,162 px/s, 197 px in 267 ms).
 - **Testing:** All six CTest targets passed. Not checked by hand in the app.
+
+## 2026-11-23 23:16 +03:00 — Smooth wheel scrolling and autoscroll in the sidebar
+
+- **Features implemented:** Thumbnails, Contents and Bookmarks glide on the wheel with the
+  document's step spring (stiffness 18/s, 3,200 px/s cap) and jump when Animations is off.
+  The document's middle-button gestures work in each panel: a middle click latches
+  autoscroll until the next click, wheel, key or focus loss; a middle drag autoscrolls
+  until release. Autoscroll works with animations off.
+- **How it works:** New `PanelScroll` (`include/pdfview/PanelScroll.h`,
+  `src/PanelScroll.cpp`), called right after the panel window's Begin (the thumbnail
+  child, or the Contents and Bookmarks tables' scrolling inner window).
+  - It sets `ImGuiWindowFlags_NoScrollWithMouse` on the current window after Begin. ImGui
+    reads the flag at the next NewFrame, so its own wheel handling skips the panel and
+    only the hovered panel takes the wheel.
+  - It keeps an unrounded position, since ImGui rounds the scroll. When the window's
+    scroll differs from it by more than a pixel (a jump to the current item, the
+    thumbnail grid following the document or keeping its anchor), it lets go at once.
+    Dragging the scrollbar, a different window ID (panel or document tab switch), a
+    skipped frame and focus loss cancel too.
+  - The wheel step is ImGui's own (5 × font size, at most two thirds of the panel), so
+    distances are unchanged; Ctrl+wheel stays with the thumbnail grid's column change.
+  - While autoscrolling, it owns the left, right and middle mouse buttons, so the click
+    that stops it doesn't also open a thumbnail or heading. The marker is drawn on the
+    foreground draw list, clipped to the panel.
+  - `autoscrollSpeed` and `drawAutoscrollMarker` are now shared with the document view,
+    and the glide constants live in `ScrollMotion` (`kStepStiffness`, `kPageStiffness`,
+    `kMaxSpeed`).
+  - The panels and the app's bookmark list report `needsFrames()`; a panel no longer
+    drawn stops asking.
+- **Testing:** New `tests/test_panel_scroll.cpp` runs a headless ImGui context: a notch
+  glides and returns, no animation jumps, the wheel outside the panel is ignored, a latched
+  autoscroll moves and a left click stops it without pressing the button underneath, a
+  middle drag stops on release, and an outside SetScrollY takes over a glide. All six CTest
+  targets passed. The app was launched for five seconds with no errors; the sidebar was
+  not tried by hand.
+- **Next steps:** Check the panels by hand, then move `ScrollMotion` and the gesture
+  state into a header-only Hd component.

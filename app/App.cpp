@@ -317,6 +317,7 @@ void App::menuItem(const char* id, const char* icon)
 bool App::needsFrames() const
 {
     if (mSelect || mActions.pending().n > 0 || mActions.holding() || mShortcutEditor.capturing()) return true;
+    if (mThumbs.needsFrames() || mOutline.needsFrames() || mBookmarkScroll.needsFrames()) return true;
     for (const auto& t : mTabs)
         if (t->changedAt >= 0 || (t->id == mActive && t->viewer->needsFrames())) return true;
     return false;
@@ -808,6 +809,7 @@ void App::drawBookmarks(Tab& t)
     }
     int remove = -1;
     if (ImGui::BeginTable("##bms", 2, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersOuter, ImGui::GetContentRegionAvail())) {
+        mBookmarkScroll.update(mSettings.animations);
         ImGui::TableSetupColumn("title", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn("page", ImGuiTableColumnFlags_WidthFixed, ImGui::CalcTextSize("00000").x);
         for (int i = 0; i < static_cast<int>(bms.size()); i++) {

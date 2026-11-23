@@ -86,6 +86,7 @@ private:
     pdfview::Actions mActions;
     pdfview::OutlinePanel mOutline;
     pdfview::ThumbnailPanel mThumbs;
+    pdfview::PanelScroll mBookmarkScroll;
     pdfview::ShortcutEditor mShortcutEditor;
     std::vector<std::unique_ptr<Tab>> mTabs;
     std::vector<std::unique_ptr<Tab>> mDead; // closed: freed next frame, after their textures were drawn
