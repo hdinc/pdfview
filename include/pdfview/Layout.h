@@ -9,12 +9,9 @@
 namespace pdfview {
 
 // how pages are arranged: in rows of `columns` pages (1: single, 2: facing,
-// more: overview); firstAlone puts the first page on a row of its own,
-// centred (a book's cover); continuous shows all rows, otherwise one row at
-// a time
+// more: overview); continuous shows all rows, otherwise one row at a time
 struct ViewMode {
     int columns = 1;
-    bool firstAlone = false;
     bool continuous = true;
 
     bool operator==(const ViewMode&) const = default;

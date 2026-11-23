@@ -156,8 +156,6 @@ void Settings::load(const std::string& path)
                 overviewColumns = static_cast<int>(toNum(v, overviewColumns));
             else if (k == "columns")
                 defaultMode.columns = std::clamp(static_cast<int>(toNum(v, 1)), 1, 12);
-            else if (k == "first_alone")
-                defaultMode.firstAlone = v == "1";
             else if (k == "continuous")
                 defaultMode.continuous = v == "1";
             else if (k == "theme")
@@ -207,8 +205,6 @@ void Settings::load(const std::string& path)
                 file->zoomMode = static_cast<pdfview::Viewer::ZoomMode>(std::clamp(static_cast<int>(toNum(v)), 0, 2));
             else if (k == "columns")
                 file->mode.columns = std::clamp(static_cast<int>(toNum(v, 1)), 1, 12);
-            else if (k == "first_alone")
-                file->mode.firstAlone = v == "1";
             else if (k == "continuous")
                 file->mode.continuous = v == "1";
             else if (k == "used")
@@ -252,7 +248,6 @@ std::string Settings::text() const
     o << "page_gaps=" << (pageGaps ? 1 : 0) << "\n";
     o << "overview_columns=" << overviewColumns << "\n";
     o << "columns=" << defaultMode.columns << "\n";
-    o << "first_alone=" << (defaultMode.firstAlone ? 1 : 0) << "\n";
     o << "continuous=" << (defaultMode.continuous ? 1 : 0) << "\n";
     o << "theme=" << theme << "\n";
     o << "ui_scale=" << num(uiScale) << "\n";
@@ -285,7 +280,6 @@ std::string Settings::text() const
         o << "zoom=" << num(f.zoom) << "\n";
         o << "zoom_mode=" << static_cast<int>(f.zoomMode) << "\n";
         o << "columns=" << f.mode.columns << "\n";
-        o << "first_alone=" << (f.mode.firstAlone ? 1 : 0) << "\n";
         o << "continuous=" << (f.mode.continuous ? 1 : 0) << "\n";
         o << "used=" << f.used << "\n";
         for (const auto& b : f.bookmarks) {

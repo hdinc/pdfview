@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress since 2026-11-24. Steps 1 to 3 done; step 3 awaits review.
+In progress since 2026-11-24. Steps 1 to 4 done; step 4 awaits review.
 
 ## Goal
 
@@ -122,7 +122,7 @@ offer it, and the toolbar comes last because it gets the button for the new Sett
   release, focus loss or Escape ends it. Tiles settle as after Ctrl+wheel. Unit-test the zoom curve
   (equal drags give equal ratios, clamped to `kMinZoom`/`kMaxZoom`); check in the app that the
   point under the cursor stays still and plain middle-button autoscroll is unchanged.
-- [ ] **Remove center first page.** Remove `firstAlone` from `ViewMode`, `Layout::build`, the
+- [x] **Remove center first page.** Remove `firstAlone` from `ViewMode`, `Layout::build`, the
   actions, the View Mode menu and `Settings` (reading `first_alone=` still works and is ignored).
   Update "Layout: view modes". Check an old settings file with `first_alone=1` loads as plain
   Facing Pages and saves without the key.

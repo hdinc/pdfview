@@ -995,3 +995,20 @@
   with the boundary at the same screen x; a plain middle click afterwards latched autoscroll
   and scrolled the view (y 100 → 351), and a left click stopped it.
 - **Next steps:** Remove Facing Pages (Center First Page) (plan step 4).
+
+## 2026-11-24 00:37 +03:00 — Remove Facing Pages (Center First Page)
+
+- **Changes made:** Removed the view mode that put the first page alone on its own row
+  (requested in review). `ViewMode` is now `{columns, continuous}`; `Layout::build` lost the
+  first-alone branch; the `view.facing_first` action and its View Mode menu item are gone.
+  Plain Facing Pages is unchanged.
+- **How it works:** Settings files still load: `first_alone=` in `[settings]` and `[file]` is
+  read and ignored, so documents saved in that mode open as plain Facing Pages, and saves no
+  longer write the key. A saved shortcut for `view.facing_first` is skipped as an unknown id,
+  as `Actions::load` already does. Removing the middle member turned every three-value
+  `ViewMode` initialiser into a compile error, so none could change meaning silently; no
+  two-value initialiser existed before.
+- **Testing:** Removed the first-alone layout and fit checks. New settings test: a file with
+  `first_alone=1` loads as facing (keeping its continuous setting) and saves without the key.
+  All eight CTest targets passed.
+- **Next steps:** The Settings window (plan step 5).

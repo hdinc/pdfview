@@ -264,7 +264,7 @@ TEST_CASE("fitted pages reach the view's edges")
 
     // one column: Fit Width makes the page exactly as wide as the view, its
     // left edge at the view's left
-    l.build(pages, {1, false, true});
+    l.build(pages, {1, true});
     for (int p = 0; p < 3; p++) {
         v.zoom = v.fitWidth(l, p);
         CHECK(l.pages[static_cast<size_t>(p)].w * v.zoom == doctest::Approx(v.w));
@@ -295,20 +295,16 @@ TEST_CASE("fitted pages reach the view's edges")
 
     // two columns: both columns fill the width (each as wide as the widest
     // page, so the zoom stays the same from row to row)
-    l.build(pages, {2, false, true});
+    l.build(pages, {2, true});
     v.zoom = v.fitWidth(l, 0);
     CHECK(l.width * v.zoom == doctest::Approx(v.w));
     // same-size pages: the pair fills it exactly
-    l.build({{100, 200}, {100, 200}}, {2, false, true});
+    l.build({{100, 200}, {100, 200}}, {2, true});
     v.zoom = v.fitWidth(l, 0);
     CHECK((l.left(1) + l.pages[1].w - l.left(0)) * v.zoom == doctest::Approx(v.w));
-    // first alone: the pairs below still fill it
-    l.build(pages, {2, true, true});
-    v.zoom = v.fitWidth(l, 1);
-    CHECK(l.width * v.zoom == doctest::Approx(v.w));
 
     // not continuous: a fitted page fills its row's band exactly, so nothing scrolls
-    l.build(pages, {1, false, false});
+    l.build(pages, {1, false});
     v.zoom = v.fitPage(l, 2);
     v.goToPage(2, l);
     auto [b0, b1] = v.band(l);
@@ -321,7 +317,7 @@ TEST_CASE("Layout without gaps: pages touch")
     std::vector<PageSize> pages{{100, 200}, {100, 100}, {100, 200}, {100, 200}};
     Layout l;
     l.gap = 0;
-    l.build(pages, {1, false, true});
+    l.build(pages, {1, true});
     CHECK(l.top[1] == doctest::Approx(200));
     CHECK(l.top[2] == doctest::Approx(300));
     CHECK(l.height == doctest::Approx(700));
@@ -332,12 +328,12 @@ TEST_CASE("Layout without gaps: pages touch")
     CHECK(l.range(200, 299).first == 1);
     CHECK(l.range(200, 299).second == 1);
     // facing and overview: columns meet
-    l.build(pages, {2, false, true});
+    l.build(pages, {2, true});
     CHECK(l.width == doctest::Approx(200));
     CHECK(l.left(1) == doctest::Approx(100));
     CHECK(l.pageAt(100.1, 50) == 1);
     CHECK(l.pageAt(99.9, 50) == 0);
-    l.build(pages, {3, false, true});
+    l.build(pages, {3, true});
     CHECK(l.width == doctest::Approx(300));
     CHECK(l.rowTop[1] == doctest::Approx(200));
 }
@@ -518,7 +514,7 @@ TEST_CASE("Layout: view modes")
     l.gap = 10;
 
     // facing: pairs meeting in the middle
-    l.build(five, {2, false, true});
+    l.build(five, {2, true});
     CHECK(l.rows() == 3);
     CHECK(l.width == doctest::Approx(210));
     CHECK(l.left(0) == doctest::Approx(0));
@@ -535,16 +531,8 @@ TEST_CASE("Layout: view modes")
     CHECK(l.pageAt(150, 450) == 4); // alone in its row
     CHECK(l.height == doctest::Approx(3 * 200 + 2 * 10));
 
-    // the first page alone, centred
-    l.build(five, {2, true, true});
-    CHECK(l.rows() == 3);
-    CHECK(l.left(0) == doctest::Approx(55));
-    CHECK(l.rowFirst == std::vector<int>{0, 1, 3});
-    CHECK(l.left(1) == doctest::Approx(0));
-    CHECK(l.left(3) == doctest::Approx(100 - 50)); // left of the pair: against the middle
-
     // overview: 3 columns, centred in each
-    l.build(five, {3, false, true});
+    l.build(five, {3, true});
     CHECK(l.rows() == 2);
     CHECK(l.left(2) == doctest::Approx(220));
     CHECK(l.left(3) == doctest::Approx(25));
@@ -557,7 +545,7 @@ TEST_CASE("Layout: view modes")
     CHECK(v.fitWidth(l, 0) == doctest::Approx(460 / l.width));
 
     // not continuous: one row at a time, flipping between them
-    l.build(five, {1, false, false});
+    l.build(five, {1, false});
     v.w = 200;
     v.h = 100;
     v.zoom = 1;
@@ -583,7 +571,7 @@ TEST_CASE("Layout: view modes")
     CHECK(v.pages(l, 1000) == std::pair{0, 0});
 
     // goToPage with a position on the page
-    l.build(five, {1, false, true});
+    l.build(five, {1, true});
     v.zoom = 1;
     v.goToPage(2, l, 50);
     CHECK(v.y == doctest::Approx(l.top[2] + 50));

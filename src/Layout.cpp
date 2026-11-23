@@ -24,8 +24,7 @@ void Layout::build(std::vector<PageSize> sizes, ViewMode m)
     width = cols * colW + (cols - 1) * gap;
     double y = 0;
     for (size_t i = 0; i < n;) {
-        bool alone = i == 0 && m.firstAlone && cols > 1;
-        size_t end = alone ? 1 : std::min(n, i + static_cast<size_t>(cols));
+        size_t end = std::min(n, i + static_cast<size_t>(cols));
         int r = static_cast<int>(rowFirst.size());
         double rh = 0;
         for (size_t k = i; k < end; k++)
@@ -33,9 +32,7 @@ void Layout::build(std::vector<PageSize> sizes, ViewMode m)
         for (size_t k = i; k < end; k++) {
             const PageSize& p = pages[k];
             double slot = static_cast<double>(k - i) * (colW + gap);
-            if (alone)
-                x[k] = (width - p.w) / 2;
-            else if (cols == 2)
+            if (cols == 2)
                 x[k] = k == i ? slot + colW - p.w : slot; // meet in the middle
             else
                 x[k] = slot + (colW - p.w) / 2;

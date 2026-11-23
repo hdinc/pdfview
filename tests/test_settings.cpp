@@ -98,6 +98,17 @@ TEST_CASE("settings: bookmarks from before ids get the same ids in every window"
     CHECK(ab == b.files["a.pdf"].bookmarks);
 }
 
+TEST_CASE("settings: the old centred-first-page mode loads as facing pages")
+{
+    std::string dir = test::scratch("settings-first-alone");
+    write(dir + "/s.ini", "[settings]\ncolumns=2\nfirst_alone=1\n[file]\npath=a.pdf\ncolumns=2\nfirst_alone=1\ncontinuous=0\n");
+    Settings s;
+    s.load(dir + "/s.ini");
+    CHECK(s.defaultMode == pdfview::ViewMode{2, true});
+    CHECK(s.files["a.pdf"].mode == pdfview::ViewMode{2, false});
+    CHECK(s.text().find("first_alone") == std::string::npos);
+}
+
 TEST_CASE("settings: two windows keep each other's changes")
 {
     std::string dir = test::scratch("settings-merge");

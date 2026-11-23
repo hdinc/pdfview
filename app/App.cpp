@@ -522,7 +522,6 @@ void App::drawViewModeMenu()
 {
     menuItem("view.single");
     menuItem("view.facing");
-    menuItem("view.facing_first");
     menuItem("view.overview");
     ImGui::Separator();
     menuItem("view.continuous");

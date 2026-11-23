@@ -1875,24 +1875,23 @@ void Viewer::registerActions(Actions& acts, std::function<Viewer*()> current)
     add("zoom.fit_page", "Fit Page", "Zoom", "Ctrl+9", "", [](Viewer& v) { v.fitPage(); }).checked = [current] { return current() && current()->zoomMode() == ZoomMode::FitPage; };
     add("zoom.actual", "Actual Size", "Zoom", "", "", [](Viewer& v) { v.setZoom(uiScale()); });
 
-    auto mode = [current](int cols, bool firstAlone) {
-        return [current, cols, firstAlone] {
+    auto mode = [current](int cols) {
+        return [current, cols] {
             Viewer* v = current();
             if (!v) return false;
             ViewMode m = v->viewMode();
-            return cols > 2 ? m.columns > 2 : m.columns == cols && (cols == 1 || m.firstAlone == firstAlone);
+            return cols > 2 ? m.columns > 2 : m.columns == cols;
         };
     };
-    add("view.single", "Single Page", "View Mode", "I", "", [](Viewer& v) { v.setViewMode({1, false, v.viewMode().continuous}); }).checked = mode(1, false);
-    add("view.facing", "Facing Pages", "View Mode", "", "", [](Viewer& v) { v.setViewMode({2, false, v.viewMode().continuous}); }).checked = mode(2, false);
-    add("view.facing_first", "Facing Pages (Center First Page)", "View Mode", "", "", [](Viewer& v) { v.setViewMode({2, true, v.viewMode().continuous}); }).checked = mode(2, true);
+    add("view.single", "Single Page", "View Mode", "I", "", [](Viewer& v) { v.setViewMode({1, v.viewMode().continuous}); }).checked = mode(1);
+    add("view.facing", "Facing Pages", "View Mode", "", "", [](Viewer& v) { v.setViewMode({2, v.viewMode().continuous}); }).checked = mode(2);
     add("view.overview", "Overview", "View Mode", "O", "", [](Viewer& v) {
         ViewMode m = v.viewMode();
         if (m.columns > 2)
             v.leaveOverview();
         else
-            v.setViewMode({v.overviewColumns(), false, m.continuous});
-    }).checked = mode(3, false);
+            v.setViewMode({v.overviewColumns(), m.continuous});
+    }).checked = mode(3);
     add("view.continuous", "Continuous", "View Mode", "C", "", [](Viewer& v) {
         ViewMode m = v.viewMode();
         m.continuous = !m.continuous;

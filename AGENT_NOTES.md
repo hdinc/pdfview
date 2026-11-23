@@ -86,6 +86,8 @@ does no file I/O of its own and launches no processes.
 - Contents rows use zero vertical cell padding so the highlight reaches both row edges.
 - The Contents context menu expands and collapses branches and highlights its target row.
 - Annotations are out of scope; documents open read-only.
+- View modes are Single, Facing, Overview (each continuous or not). Facing Pages (Center First Page) was removed
+  on request (2026-11-24); `first_alone=` in old settings files is ignored.
 - The layout has no margin around the document: `Layout::gap` is only between pages and rows, so fits, page
   jumps and scroll ends touch the view's edges. The viewer reserves the scrollbar strip only when the content
   can scroll at the full width (`Viewer::needsScrollbar`), a test that can't flip between frames.
@@ -102,8 +104,8 @@ does no file I/O of its own and launches no processes.
 
 ## Current work
 - [View fit, page gaps, drag zoom, settings window and toolbar](doc/plans/2026-11-24-view-fit-zoom-settings.md):
-  steps 1 to 3 done (fit 01d86f1, gaps 1629e26; Ctrl + middle drag zoom uncommitted, for review). Next:
-  remove Facing Pages (Center First Page).
+  steps 1 to 4 done (fit 01d86f1, gaps 1629e26, drag zoom 9221f1d; removing the centred first page
+  uncommitted, for review). Next: the Settings window.
 - [Viewer interaction updates](doc/plans/2026-11-22-viewer-interaction-updates.md) is done (last commits: Hd
   3191ff6, pdfview bd53f4d). Not yet tested on Linux.
 
