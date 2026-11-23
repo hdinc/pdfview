@@ -342,6 +342,17 @@ TEST_CASE("Layout without gaps: pages touch")
     CHECK(l.rowTop[1] == doctest::Approx(200));
 }
 
+TEST_CASE("drag zoom: up zooms in, equal drags give equal ratios")
+{
+    CHECK(View::dragZoom(1, 0, 1) == doctest::Approx(1));
+    CHECK(View::dragZoom(1, -200, 1) == doctest::Approx(2)); // up
+    CHECK(View::dragZoom(1, 200, 1) == doctest::Approx(0.5)); // down
+    CHECK(View::dragZoom(1.5, -100, 1) / 1.5 == doctest::Approx(View::dragZoom(0.3, -100, 1) / 0.3));
+    CHECK(View::dragZoom(1, -400, 2) == doctest::Approx(2)); // the distance follows the UI scale
+    CHECK(View::dragZoom(1, -1e6, 1) == View::kMaxZoom);
+    CHECK(View::dragZoom(1, 1e6, 1) == View::kMinZoom);
+}
+
 TEST_CASE("levels and visible tiles")
 {
     CHECK(levelFor(1.0) == 0);

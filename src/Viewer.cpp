@@ -89,6 +89,7 @@ void Viewer::cancelTileRequests()
 {
     cancelScroll();
     mAuto.stop();
+    mZoomDrag.on = false;
     mPending.clear();
     mLastWanted.clear();
     mThumbnailRequests.clear();
@@ -1220,7 +1221,7 @@ ImTextureID Viewer::pageTexture(int page, double pixelWidth, int& w, int& h)
 
 bool Viewer::needsFrames() const
 {
-    return mMotion.active() || mAuto.on() || mSettling || !mPending.empty() || state() == State::Loading
+    return mMotion.active() || mAuto.on() || mZoomDrag.on || mSettling || !mPending.empty() || state() == State::Loading
         || mThumbnailFind.startAt >= 0 || mThumbnailFind.generation
         || (mThumbnailFind.filtered && mThumbnailFind.publishedOn == mFrame)
         || mCopyPending || (mPress.on && mPress.selecting)
@@ -1388,7 +1389,11 @@ void Viewer::handleMouse(ImVec2 origin, bool hovered, bool active)
         mPress.on = !stopClick;
         mPress.button = ImGui::IsMouseDown(ImGuiMouseButton_Left) ? ImGuiMouseButton_Left : ImGuiMouseButton_Middle;
         mPress.at = io.MousePos;
-        if (mPress.on && mPress.button == ImGuiMouseButton_Middle) {
+        if (mPress.on && mPress.button == ImGuiMouseButton_Middle && io.KeyCtrl) {
+            // Ctrl + middle drag zooms around the press point instead
+            mZoomDrag = {true, mView.zoom, sx, sy, io.MousePos.y};
+            mPress.on = false;
+        } else if (mPress.on && mPress.button == ImGuiMouseButton_Middle) {
             mAuto.start({mPress.at.x, mPress.at.y});
         } else if (mPress.on && onPage && mTool == Tool::Text) {
             int clicks = io.MouseClickedCount[ImGuiMouseButton_Left];
@@ -1402,6 +1407,15 @@ void Viewer::handleMouse(ImVec2 origin, bool hovered, bool active)
                     mPress.selecting = true;
                 }
             }
+        }
+    }
+    if (mZoomDrag.on) {
+        if (!ImGui::IsMouseDown(ImGuiMouseButton_Middle) || io.AppFocusLost || ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
+            mZoomDrag.on = false;
+        } else if (ImGui::IsMousePosValid()) {
+            double z = View::dragZoom(mZoomDrag.start, io.MousePos.y - mZoomDrag.y0, uiScale());
+            mZoomMode = ZoomMode::Free;
+            if (z != mView.zoom) zoomAround(z, mZoomDrag.sx, mZoomDrag.sy);
         }
     }
     bool released = ImGui::IsItemDeactivated();
@@ -1773,7 +1787,9 @@ void Viewer::draw(const char* id, ImVec2 size)
     drawPageMenu();
     updateAutoscroll();
     updateScrollAnimation();
-    if (mAuto.on() && hovered)
+    if (mZoomDrag.on)
+        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+    else if (mAuto.on() && hovered)
         ImGui::SetMouseCursor(mLayout.width > mView.w / mView.zoom ? ImGuiMouseCursor_ResizeAll : ImGuiMouseCursor_ResizeNS);
     if (scrollbar) drawScrollbar({origin.x + canvas.x, origin.y}, {scrollbarW(), canvas.y});
 

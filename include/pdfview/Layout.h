@@ -73,6 +73,10 @@ struct View {
     void clamp(const Layout& l);
     // zooms keeping the document point under screen point (sx, sy) in place
     void zoomAt(double zoom, double sx, double sy, const Layout& l);
+    // the zoom for a zoom drag `dy` screen pixels down from where it started
+    // at `start`: up zooms in, twice per 200 pixels at UI scale 1, so equal
+    // drags give equal ratios
+    static double dragZoom(double start, double dy, double scale);
     // the zoom that fits the page's width (single column) or the rows'
     double fitWidth(const Layout& l, int page) const;
     // the zoom that shows the whole page (single column) or its row

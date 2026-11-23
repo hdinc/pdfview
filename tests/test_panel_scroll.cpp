@@ -164,3 +164,15 @@ TEST_CASE("PanelScroll: a scroll set elsewhere takes over a glide")
     CHECK(g.scrollY == 2000);
     CHECK(!g.scroll.needsFrames());
 }
+
+TEST_CASE("PanelScroll: Ctrl + middle click is left alone")
+{
+    Gui g;
+    g.frame([](ImGuiIO& io) { io.AddMousePosEvent(100, 200); });
+    g.frame([](ImGuiIO& io) {
+        io.AddKeyEvent(ImGuiMod_Ctrl, true);
+        io.AddMouseButtonEvent(ImGuiMouseButton_Middle, true);
+    });
+    g.frame([](ImGuiIO& io) { io.AddMouseButtonEvent(ImGuiMouseButton_Middle, false); });
+    CHECK(!g.scroll.needsFrames());
+}

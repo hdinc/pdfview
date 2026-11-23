@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress since 2026-11-24. Steps 1 and 2 done; step 2 awaits review.
+In progress since 2026-11-24. Steps 1 to 3 done; step 3 awaits review.
 
 ## Goal
 
@@ -117,7 +117,7 @@ offer it, and the toolbar comes last because it gets the button for the new Sett
   preferences) and apply it to all tabs. Draw a thin page border when the gap is 0. Tests: Layout
   with gap 0 (pages touch, `rowAt`/`pageAt` still right at the joins), position kept across a gap
   change, the settings round trip and merge.
-- [ ] **Ctrl + middle drag zoom.** Add the zoom drag to `Viewer::handleMouse`: Ctrl at the middle
+- [x] **Ctrl + middle drag zoom.** (Done: `View::dragZoom` and `Viewer::mZoomDrag`; the sidebar ignores Ctrl + middle.) Add the zoom drag to `Viewer::handleMouse`: Ctrl at the middle
   press chooses zoom over autoscroll; the press point stays fixed; Free zoom; cursor ResizeNS;
   release, focus loss or Escape ends it. Tiles settle as after Ctrl+wheel. Unit-test the zoom curve
   (equal drags give equal ratios, clamped to `kMinZoom`/`kMaxZoom`); check in the app that the

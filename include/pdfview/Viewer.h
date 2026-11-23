@@ -310,6 +310,13 @@ private:
     double mFlipPush = 0;
     ScrollMotion mMotion; // the running glide, within the current row
     Autoscroll mAuto;
+    // Ctrl + middle drag: zooming around the press point
+    struct {
+        bool on = false;
+        double start = 1; // the zoom at the press
+        double sx = 0, sy = 0; // the press point in the view
+        float y0 = 0; // the press's screen y
+    } mZoomDrag;
     int mMenuPage = -1;
 
     // pages' links and text, read on the worker as pages come into view

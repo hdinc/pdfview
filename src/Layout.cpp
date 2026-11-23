@@ -129,6 +129,11 @@ void View::zoomAt(double z, double sx, double sy, const Layout& l)
     clamp(l);
 }
 
+double View::dragZoom(double start, double dy, double scale)
+{
+    return std::clamp(start * std::exp2(-dy / (200 * scale)), kMinZoom, kMaxZoom);
+}
+
 double View::fitWidth(const Layout& l, int page) const
 {
     if (l.pages.empty() || w <= 0) return zoom;

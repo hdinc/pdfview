@@ -73,6 +73,7 @@ does no file I/O of its own and launches no processes.
 - Sidebar panels (Thumbnails, Contents, Bookmarks) take the wheel from ImGui by setting `NoScrollWithMouse` on their
   window after Begin, and run it through `PanelScroll`. Autoscroll owns the mouse buttons while on, so the stopping
   click reaches no item.
+- Ctrl + middle drag zooms around the press point (up zooms in, ×2 per 200 px at UI scale 1, `View::dragZoom`).
 - Middle-click toggles autoscroll. A middle drag autoscrolls until release. In non-continuous view, autoscroll stays in the current row.
 - Double-click word selection and triple-click line selection are limited to Text Selection mode.
 - The page context menu uses standard ImGui styling and Font Awesome icons. Fit Width leaves Overview for the previous normal layout.
@@ -101,8 +102,8 @@ does no file I/O of its own and launches no processes.
 
 ## Current work
 - [View fit, page gaps, drag zoom, settings window and toolbar](doc/plans/2026-11-24-view-fit-zoom-settings.md):
-  steps 1 (fits fill the view, 01d86f1) and 2 (page gaps on/off, uncommitted, for review) done. Next: Ctrl +
-  middle drag zoom.
+  steps 1 to 3 done (fit 01d86f1, gaps 1629e26; Ctrl + middle drag zoom uncommitted, for review). Next:
+  remove Facing Pages (Center First Page).
 - [Viewer interaction updates](doc/plans/2026-11-22-viewer-interaction-updates.md) is done (last commits: Hd
   3191ff6, pdfview bd53f4d). Not yet tested on Linux.
 

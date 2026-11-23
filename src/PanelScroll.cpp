@@ -77,7 +77,8 @@ void PanelScroll::update(bool animations)
         else if (ImGui::IsMousePosValid()) mAuto.track(pointer, ImGui::IsMouseDown(ImGuiMouseButton_Middle), sc);
         if (!mAuto.on()) stopped = true;
     }
-    if (!mAuto.on() && !stopped && hovered && maxScroll > 0 && ImGui::IsMouseClicked(ImGuiMouseButton_Middle)) {
+    // Ctrl + middle zooms the document; panels leave it alone
+    if (!mAuto.on() && !stopped && hovered && maxScroll > 0 && !io.KeyCtrl && ImGui::IsMouseClicked(ImGuiMouseButton_Middle)) {
         mMotion.stop();
         mAuto.start(pointer);
         mPos = scroll;

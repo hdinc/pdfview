@@ -972,3 +972,26 @@
 - **Outstanding issues:** In facing and Overview, columns are as wide as the widest page, so
   documents with mixed page widths still show space beside narrower pages with gaps off.
 - **Next steps:** Ctrl + middle-button drag zoom (plan step 3).
+
+## 2026-11-24 00:35 +03:00 — Ctrl + middle-button drag zooms
+
+- **Features implemented:** Holding Ctrl while pressing the middle button on a document
+  starts a zoom drag instead of autoscroll. Dragging up zooms in and down zooms out, around
+  the point where the press began. Release, focus loss or Escape ends it. It sets Free zoom,
+  as Ctrl+wheel does. Plain middle-button gestures are unchanged; the sidebar panels ignore
+  Ctrl + middle.
+- **How it works:** `View::dragZoom(start, dy, scale)` = start × 2^(−dy / (200 × scale)),
+  clamped to the zoom limits, so equal drags give equal ratios and the distance follows the
+  UI scale. `Viewer::mZoomDrag` records the starting zoom, the press point in the view and
+  the press's screen y; each frame while the middle button is down, `handleMouse` applies
+  `zoomAround` at the press point, so the document point under it stays put, and tiles
+  re-render once the zoom settles as after Ctrl+wheel. The cursor shows ResizeNS. Opening or
+  closing a document ends a drag. `PanelScroll` doesn't start autoscroll with Ctrl held.
+- **Testing:** New "drag zoom" test: no movement keeps the zoom, 200 px up doubles it and
+  down halves it, equal drags give equal ratios at different zooms, the distance follows the
+  scale, and the limits clamp. New PanelScroll test: Ctrl + middle click starts nothing. All
+  eight CTest targets passed. In pdfview-app, a synthesized Ctrl + middle drag of 200 px up
+  from the red/blue boundary of a test page zoomed from 40 % to 57 % (×√2 at UI scale 2)
+  with the boundary at the same screen x; a plain middle click afterwards latched autoscroll
+  and scrolled the view (y 100 → 351), and a left click stopped it.
+- **Next steps:** Remove Facing Pages (Center First Page) (plan step 4).
