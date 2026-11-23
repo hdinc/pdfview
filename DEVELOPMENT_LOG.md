@@ -1081,3 +1081,13 @@
   runs past the window's edge, as the old toolbar did at that width.
 - **Outstanding issues:** Below about 900 px (medium buttons) the right group is cut off;
   groups that don't fit could move into a menu.
+
+## 2026-11-24 00:54 +03:00 — Open MSYS-style paths on Windows
+
+- **Changes made:** Opening `/c/Users/hd/Downloads/riscv-privileged.pdf` failed with "can't
+  open C:\c\Users\hd\...". The fix is in Hd's `Platform::normalPath` (see Hd's log): on
+  Windows, `/x/...` and `/cygdrive/x/...` now mean drive X: when it exists. Removed the item
+  from [doc/todo.md](doc/todo.md).
+- **Testing:** All nine CTest targets passed, with Hd's new `hd_platform_test`. pdfview-app
+  started from PowerShell (no MSYS path conversion) with a `/c/Users/...` path opened the
+  file and saved it as `C:\Users\...`.
