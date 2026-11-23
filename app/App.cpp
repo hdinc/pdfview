@@ -609,71 +609,96 @@ namespace Icon {
 constexpr const char* up = "\xef\x81\xb7"; // chevron-up
 constexpr const char* down = "\xef\x81\xb8"; // chevron-down
 constexpr const char* sidebar = "\xef\x83\x9b"; // table-columns
-constexpr const char* fitPage = "\xef\x81\xa5"; // expand
 constexpr const char* viewMode = "\xef\x8c\x82"; // images
 constexpr const char* hand = "\xef\x89\x96"; // hand
 constexpr const char* textCursor = "\xef\x89\x86"; // i-cursor
 constexpr const char* find = "\xef\x80\x82"; // magnifying-glass
 constexpr const char* bookmark = "\xef\x80\xae"; // bookmark
+constexpr const char* settings = "\xef\x80\x93"; // gear
 }
 
 void App::drawToolbar()
 {
+    // Three groups, like Okular's toolbar: view controls on the left, page
+    // navigation in the middle, tools on the right. Each group's width comes
+    // from the last frame (the page count's text varies); on a narrow
+    // window the middle group follows the left one instead of overlapping.
     Viewer* v = activeViewer();
     bool ready = v && v->state() == Viewer::State::Ready;
     float gap = Hd::toolbarGap();
+    float sep = gap * 4;
     auto tip = [&](const char* name, const char* id) {
         std::string k = mActions.keysOf(id);
         return k.empty() ? std::string(name) : std::string(name) + " (" + k + ")";
     };
-    auto sep = [&] { ImGui::SameLine(0, gap * 4); };
+    float x0 = ImGui::GetCursorPosX();
+    float width = ImGui::GetContentRegionAvail().x;
+
+    // left: sidebar | zoom | view mode
+    ImGui::BeginGroup();
     if (Hd::iconButton(Icon::sidebar, tip("Show Sidebar", "view.sidebar").c_str(), mSettings.sidebar)) mSettings.sidebar = !mSettings.sidebar;
-    sep();
-    if (Hd::iconButton(Hd::Icon::prev, tip("Back", "go.back").c_str(), false, ready && v->canBack())) v->back();
+    ImGui::SameLine(0, sep);
+    if (Hd::iconButton(Hd::Icon::zoomIn, tip("Zoom In", "zoom.in").c_str(), false, ready)) v->zoomIn();
     ImGui::SameLine(0, gap);
-    if (Hd::iconButton(Hd::Icon::next, tip("Forward", "go.forward").c_str(), false, ready && v->canForward())) v->forward();
-    sep();
+    if (Hd::iconButton(Hd::Icon::zoomOut, tip("Zoom Out", "zoom.out").c_str(), false, ready)) v->zoomOut();
+    if (ready) {
+        ImGui::SameLine(0, gap);
+        Hd::toolbarCenter();
+        v->drawZoomCombo(); // also Fit Width and Fit Page
+    }
+    ImGui::SameLine(0, sep);
+    if (Hd::iconButton(Icon::viewMode, "View Mode", false, ready)) ImGui::OpenPopup("##viewmode");
+    {
+        // a small arrow in the corner: it opens a menu
+        ImVec2 b = ImGui::GetItemRectMax();
+        float a = ImGui::GetFontSize() * 0.22f;
+        ImU32 col = ImGui::GetColorU32(ready ? ImGuiCol_Text : ImGuiCol_TextDisabled);
+        ImGui::GetWindowDrawList()->AddTriangleFilled({b.x - 3 * a, b.y - 2.2f * a}, {b.x - a, b.y - 2.2f * a}, {b.x - 2 * a, b.y - 1.2f * a}, col);
+    }
+    if (ImGui::BeginPopup("##viewmode")) {
+        drawViewModeMenu();
+        ImGui::EndPopup();
+    }
+    ImGui::EndGroup();
+    float leftEnd = ImGui::GetItemRectMax().x - ImGui::GetWindowPos().x;
+
+    // middle: previous page, the page box, next page
+    float centerX = std::max(leftEnd + sep, x0 + (width - mToolbarCenterW) / 2);
+    ImGui::SameLine(0, 0);
+    ImGui::SetCursorPosX(centerX);
+    ImGui::BeginGroup();
     if (Hd::iconButton(Icon::up, tip("Previous Page", "go.prev_page").c_str(), false, ready)) v->prevPage();
-    ImGui::SameLine(0, gap);
-    if (Hd::iconButton(Icon::down, tip("Next Page", "go.next_page").c_str(), false, ready)) v->nextPage();
     if (ready) {
         ImGui::SameLine(0, gap * 2);
         Hd::toolbarCenter();
         v->drawPageBox();
     }
-    sep();
-    if (Hd::iconButton(Hd::Icon::zoomOut, tip("Zoom Out", "zoom.out").c_str(), false, ready)) v->zoomOut();
-    ImGui::SameLine(0, gap);
-    if (ready) {
-        Hd::toolbarCenter();
-        v->drawZoomCombo();
-        ImGui::SameLine(0, gap);
-    }
-    if (Hd::iconButton(Hd::Icon::zoomIn, tip("Zoom In", "zoom.in").c_str(), false, ready)) v->zoomIn();
-    ImGui::SameLine(0, gap);
-    if (Hd::iconButton(Hd::Icon::fit, tip("Fit Width", "zoom.fit_width").c_str(), ready && v->zoomMode() == Viewer::ZoomMode::FitWidth, ready)) v->fitWidth();
-    ImGui::SameLine(0, gap);
-    if (Hd::iconButton(Icon::fitPage, tip("Fit Page", "zoom.fit_page").c_str(), ready && v->zoomMode() == Viewer::ZoomMode::FitPage, ready)) v->fitPage();
-    sep();
-    if (Hd::iconButton(Icon::viewMode, "View Mode", false, ready)) ImGui::OpenPopup("##viewmode");
-    if (ImGui::BeginPopup("##viewmode")) {
-        drawViewModeMenu();
-        ImGui::EndPopup();
-    }
-    sep();
+    ImGui::SameLine(0, gap * 2);
+    if (Hd::iconButton(Icon::down, tip("Next Page", "go.next_page").c_str(), false, ready)) v->nextPage();
+    ImGui::EndGroup();
+    mToolbarCenterW = ImGui::GetItemRectSize().x;
+    float centerEnd = ImGui::GetItemRectMax().x - ImGui::GetWindowPos().x;
+
+    // right: tools | find | settings
+    float rightX = std::max(centerEnd + sep, x0 + width - mToolbarRightW);
+    ImGui::SameLine(0, 0);
+    ImGui::SetCursorPosX(rightX);
+    ImGui::BeginGroup();
     bool text = ready && v->tool() == Viewer::Tool::Text;
     if (Hd::iconButton(Icon::hand, tip("Browse", "tool.browse").c_str(), ready && !text, ready)) v->setTool(Viewer::Tool::Browse);
     ImGui::SameLine(0, gap);
     if (Hd::iconButton(Icon::textCursor, tip("Text Selection", "tool.text").c_str(), text, ready)) v->setTool(Viewer::Tool::Text);
-    sep();
+    ImGui::SameLine(0, sep);
     if (Hd::iconButton(Icon::find, tip("Find", "find.find").c_str(), ready && v->findBarShown(), ready)) {
         if (v->findBarShown())
             v->hideFindBar();
         else
             v->showFindBar();
     }
-    ImGui::SameLine(0, gap);
-    if (Hd::iconButton(Icon::bookmark, tip("Add Bookmark", "bookmark.add").c_str(), false, ready)) mActions.trigger("bookmark.add");
+    ImGui::SameLine(0, sep);
+    if (Hd::iconButton(Icon::settings, tip("Settings", "settings.open").c_str(), mSettingsOpen)) mSettingsOpen = !mSettingsOpen;
+    ImGui::EndGroup();
+    mToolbarRightW = ImGui::GetItemRectSize().x;
 }
 
 void App::drawWorkspace()

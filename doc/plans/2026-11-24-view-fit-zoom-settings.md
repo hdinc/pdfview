@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress since 2026-11-24. Steps 1 to 5 done; step 5 awaits review.
+Done 2026-11-24 (step 6 awaiting review). Step 5 changed in review: new files open in the last layout used instead of a configured one.
 
 ## Goal
 
@@ -130,7 +130,7 @@ offer it, and the toolbar comes last because it gets the button for the new Sett
   `settings.open` action (Ctrl+Comma), and the reduced Settings menu. Fold the Fonts window in.
   Check each control applies live, saves, and survives a restart; check two windows' saves still
   merge.
-- [ ] **Toolbar in three groups.** Rearrange `App::drawToolbar` into the left, centre and right
+- [x] **Toolbar in three groups.** Rearrange `App::drawToolbar` into the left, centre and right
   groups above, with the Settings button. Check every removed button's action is still reachable
   from a menu and its shortcut, the centre group is centred on a wide window, and the groups don't
   overlap at 100 % on a 1,300-pixel window at every toolbar size, or when the sidebar is open.

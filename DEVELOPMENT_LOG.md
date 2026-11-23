@@ -1055,3 +1055,29 @@
   saved in Facing Pages, with Facing Pages as the default: pressing I (Single Page), then O
   twice (into Overview and back), left the default at Single Page; opening a file not seen
   before then started it in Single Page.
+
+## 2026-11-24 00:46 +03:00 — The toolbar in three groups
+
+- **Changes made:** The toolbar, previously 14 buttons and two fields in seven groups all
+  left aligned, now has three groups after the Okular layout shown in review, in pdfview's
+  icon style and with only features pdfview has:
+  - left: Show Sidebar | Zoom In, Zoom Out, the zoom combo (which lists Fit Width and Fit
+    Page) | View Mode, with a small arrow in its corner because it opens a menu;
+  - centre, in the middle of the toolbar: Previous Page, the page box with "of N", Next
+    Page;
+  - right: Browse, Text Selection | Find | Settings (a gear, Font Awesome U+F013, opening
+    the Settings window; highlighted while it is open).
+  Back, Forward, the Fit Width and Fit Page buttons and Add Bookmark left the toolbar; they
+  stay in the Go, View and Bookmarks menus, the zoom combo and their shortcuts.
+- **How it works:** `App::drawToolbar` draws each group in an ImGui group. The centre group
+  starts at the toolbar's middle minus half its width, and the right group at the right edge
+  minus its width, both widths measured on the previous frame (`mToolbarCenterW`,
+  `mToolbarRightW`; the page count's text varies). When the middle position would overlap
+  the left group, the centre group follows it instead, and the right group follows the
+  centre group the same way.
+- **Testing:** Built; all eight CTest targets passed. Screenshots of pdfview-app: 1,300 px
+  wide with medium buttons, and with large buttons and the sidebar open: three groups with
+  room between them. 700 px wide: the centre group follows the left one; the right group
+  runs past the window's edge, as the old toolbar did at that width.
+- **Outstanding issues:** Below about 900 px (medium buttons) the right group is cut off;
+  groups that don't fit could move into a menu.

@@ -54,7 +54,8 @@ does no file I/O of its own and launches no processes.
   - Themes are upstream Hd's (keys "dark", "light", "black", custom), plus "system".
   - Settings store fonts as `Hd::toString(FontRef)`.
   - The toolbar uses `Hd::iconButton` with Font Awesome glyphs. pdfview's own glyphs are in
-    `App.cpp`'s `Icon` namespace.
+    `App.cpp`'s `Icon` namespace. It has three groups like Okular's: sidebar, zoom, view mode on the left;
+    page navigation centred; tools, Find and Settings on the right. Group widths come from the last frame.
 - Native file dialogs (Win32 / zenity / kdialog) instead of nativefiledialog-extended: no GTK build dep.
 - The app opens only http/https/mailto links, after asking; other links can only be copied.
 - A file opened for the first time gets the last layout chosen in any tab (Overview excepted, `App::followLayout`)
@@ -108,8 +109,7 @@ does no file I/O of its own and launches no processes.
 
 ## Current work
 - [View fit, page gaps, drag zoom, settings window and toolbar](doc/plans/2026-11-24-view-fit-zoom-settings.md):
-  steps 1 to 5 done (fit 01d86f1, gaps 1629e26, drag zoom 9221f1d, first page f7ca8e7; Settings window
-  uncommitted, for review). Next: the toolbar in three groups.
+  done; the toolbar (step 6) is uncommitted, for review. Not yet tested on Linux.
 - [Viewer interaction updates](doc/plans/2026-11-22-viewer-interaction-updates.md) is done (last commits: Hd
   3191ff6, pdfview bd53f4d). Not yet tested on Linux.
 

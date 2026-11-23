@@ -98,6 +98,8 @@ private:
     bool mShortcutsOpen = false;
     Hd::ThemeEditor mThemeEditor;
     bool mSettingsOpen = false;
+    float mToolbarCenterW = 0; // the toolbar groups' widths, last frame
+    float mToolbarRightW = 0;
     std::vector<Hd::FontFace> mFontList; // read when the Settings window first opens
     bool mFontListRead = false;
     Hd::FontPicker mUiPicker, mMonoPicker{true};
