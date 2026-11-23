@@ -19,12 +19,14 @@ does no file I/O of its own and launches no processes.
   - `History.h`: the back/forward model.
 - `app/`: pdfview-app.
   - `App`: tabs, sidebar, toolbar, menus, reload and dialogs.
-  - `Settings`: `settings.ini` (prefs, look, window, shortcuts, session, per-file state, bookmarks).
+  - `Settings`: `settings.ini` (prefs, look, window, shortcuts, session, per-file state, bookmarks). Saves are
+    three-way merges under a lock (`saveMerged`), so several app windows can share the file.
 - `deps/Hd`: submodule (its own repo, with its own AGENT_NOTES.md).
   - Window, ImGui setup, and the look: scale, fonts, Font Awesome icons, themes with an editor.
   - `Hd::Platform`: native file dialog, open URI, dark mode, the system's UI font.
   - `C:\dev\github\Hd` is an older, separate checkout: don't edit that one.
 - `tests/`: doctest. `fixtures.h` writes the test PDFs (text, links, outline, labels); no PDFs are stored.
+  `test_settings.cpp` (built with the app) compiles `app/Settings.cpp` and runs copies of itself as writers.
 - `build/` is output. `doc/plans/` holds plans.
 
 ## Commands (MSYS2 ucrt64)
@@ -83,14 +85,19 @@ does no file I/O of its own and launches no processes.
 - Contents rows use zero vertical cell padding so the highlight reaches both row edges.
 - The Contents context menu expands and collapses branches and highlights its target row.
 - Annotations are out of scope; documents open read-only.
+- Settings saves: hold `Hd::FileLock` on `settings.ini.lock`, read the file, keep local changes since the last
+  load or save (`App::mSaved`), write with `Hd::replaceFile`. The open tabs are the saving window's, so a launch
+  without files restores the last window saved. Bookmarks have ids (`bookmark_id=` after each `bookmark=` line,
+  so older versions still read them); bookmarks without one get an id hashed from their contents. `used` is
+  wall-clock ms, comparable between windows.
 
 ## Docs
 - [doc/plans/](doc/plans/): implementation plans, dated.
 
 ## Current work
 - [Viewer interaction updates](doc/plans/2026-11-22-viewer-interaction-updates.md) is in progress.
-  Sidebar scrolling is committed (0b8cc9c); the shared `Autoscroll` gesture is uncommitted, for review.
-  Next: safe session saves across two instances.
+  Scrolling is committed (786c5a4). Safe settings saves across windows are done and tested, uncommitted, for
+  review (Hd: `Files.h`; pdfview: `Settings::saveMerged`). Next: move shortcut editing to Hd.
 
 [doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md).
 - All phases are written and tested on Windows, including after merging upstream Hd's themes and fonts.

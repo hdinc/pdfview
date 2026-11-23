@@ -1,10 +1,15 @@
 #include "Settings.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <random>
+#include <set>
 #include <sstream>
+
+#include <Hd/Files.h>
 
 namespace fs = std::filesystem;
 
@@ -39,6 +44,73 @@ std::string oneLine(const std::string& s)
     return o;
 }
 
+std::string hex(uint64_t v)
+{
+    char b[17];
+    snprintf(b, sizeof b, "%016llx", static_cast<unsigned long long>(v));
+    return b;
+}
+
+// Bookmarks saved before they had ids get one from what they are, so every
+// window reading the same file gives them the same one.
+uint64_t legacyId(const Bookmark& b, int occurrence)
+{
+    uint64_t h = 1469598103934665603ull; // FNV-1a
+    auto mix = [&](const std::string& s) {
+        for (unsigned char c : s) {
+            h ^= c;
+            h *= 1099511628211ull;
+        }
+        h ^= 0xff;
+        h *= 1099511628211ull;
+    };
+    mix(std::to_string(b.page));
+    mix(num(b.y));
+    mix(b.title);
+    mix(std::to_string(occurrence));
+    return h ? h : 1;
+}
+
+uint64_t nowMs()
+{
+    using namespace std::chrono;
+    return static_cast<uint64_t>(duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count());
+}
+
+std::string lockPath(const std::string& path) { return path + ".lock"; }
+
+// shortcut lines by action id
+std::map<std::string, std::string> shortcutLines(const std::string& text)
+{
+    std::map<std::string, std::string> out;
+    std::istringstream in(text);
+    std::string line;
+    while (std::getline(in, line)) {
+        size_t colon = line.find(':');
+        if (colon == std::string::npos) continue;
+        std::string id = line.substr(0, colon);
+        while (!id.empty() && id.back() == ' ') id.pop_back();
+        out[id] = line;
+    }
+    return out;
+}
+
+// the local value when it changed since base, else the file's
+template <class T>
+void pick(T& result, const T& local, const T& base)
+{
+    if (!(local == base)) result = local;
+}
+
+}
+
+uint64_t newBookmarkId()
+{
+    static std::mt19937_64 rng(std::random_device{}() ^ nowMs());
+    uint64_t v;
+    do v = rng();
+    while (v == 0);
+    return v;
 }
 
 void Settings::load(const std::string& path)
@@ -47,6 +119,7 @@ void Settings::load(const std::string& path)
     if (!in) return;
     std::string line, section;
     FileState* file = nullptr;
+    *this = Settings{};
     while (std::getline(in, line)) {
         if (!line.empty() && line.back() == '\r') line.pop_back();
         if (line.empty() || line[0] == '#') continue;
@@ -143,13 +216,27 @@ void Settings::load(const std::string& path)
                 size_t a = v.find('|');
                 size_t b = a == std::string::npos ? a : v.find('|', a + 1);
                 if (b == std::string::npos) continue;
-                file->bookmarks.push_back({static_cast<int>(toNum(v.substr(0, a))), toNum(v.substr(a + 1, b - a - 1), -1), v.substr(b + 1)});
+                file->bookmarks.push_back({static_cast<int>(toNum(v.substr(0, a))), toNum(v.substr(a + 1, b - a - 1), -1), v.substr(b + 1), 0});
+            } else if (k == "bookmark_id" && !file->bookmarks.empty()) {
+                // its own line, so older versions still read the bookmark
+                file->bookmarks.back().id = std::strtoull(v.c_str(), nullptr, 16);
             }
         }
     }
+    for (auto& [p, f] : files) {
+        std::map<std::pair<std::string, std::string>, int> seen;
+        for (auto& b : f.bookmarks)
+            if (b.id == 0) b.id = legacyId(b, seen[{std::to_string(b.page) + "|" + num(b.y), b.title}]++);
+    }
 }
 
-bool Settings::save(const std::string& path) const
+void Settings::loadLocked(const std::string& path)
+{
+    Hd::FileLock lock(lockPath(path));
+    load(path);
+}
+
+std::string Settings::text() const
 {
     std::ostringstream o;
     o << "# pdfview settings\n[settings]\n";
@@ -198,22 +285,127 @@ bool Settings::save(const std::string& path) const
         o << "first_alone=" << (f.mode.firstAlone ? 1 : 0) << "\n";
         o << "continuous=" << (f.mode.continuous ? 1 : 0) << "\n";
         o << "used=" << f.used << "\n";
-        for (const auto& b : f.bookmarks)
+        for (const auto& b : f.bookmarks) {
             o << "bookmark=" << b.page << "|" << num(b.y) << "|" << oneLine(b.title) << "\n";
+            o << "bookmark_id=" << hex(b.id) << "\n";
+        }
     }
-    std::error_code ec;
-    fs::path target = u8(path);
-    fs::create_directories(target.parent_path(), ec);
-    fs::path tmp = target;
-    tmp += ".tmp";
+    return o.str();
+}
+
+Settings Settings::merge(const Settings& disk, const Settings& local, const Settings& base)
+{
+    Settings r = disk;
+    // preferences, one by one
+    pick(r.sidebar, local.sidebar, base.sidebar);
+    pick(r.sidebarWidth, local.sidebarWidth, base.sidebarWidth);
+    pick(r.sidebarTab, local.sidebarTab, base.sidebarTab);
+    pick(r.thumbSize, local.thumbSize, base.thumbSize);
+    pick(r.thumbLabels, local.thumbLabels, base.thumbLabels);
+    pick(r.thumbGaps, local.thumbGaps, base.thumbGaps);
+    pick(r.animations, local.animations, base.animations);
+    pick(r.overviewColumns, local.overviewColumns, base.overviewColumns);
+    pick(r.defaultMode, local.defaultMode, base.defaultMode);
+    pick(r.theme, local.theme, base.theme);
+    pick(r.uiScale, local.uiScale, base.uiScale);
+    pick(r.font, local.font, base.font);
+    pick(r.monoFont, local.monoFont, base.monoFont);
+    pick(r.fontSize, local.fontSize, base.fontSize);
+    pick(r.toolbarSize, local.toolbarSize, base.toolbarSize);
+    auto window = [](const Settings& s) { return std::tuple{s.winX, s.winY, s.winW, s.winH, s.winMax}; };
+    if (window(local) != window(base)) std::tie(r.winX, r.winY, r.winW, r.winH, r.winMax) = window(local);
+    r.clock = std::max(disk.clock, local.clock);
+
+    // shortcuts, action by action (an action at its defaults has no line)
     {
-        std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-        if (!out) return false;
-        out << o.str();
-        if (!out.flush()) return false;
+        auto d = shortcutLines(disk.shortcuts), l = shortcutLines(local.shortcuts), b = shortcutLines(base.shortcuts);
+        std::set<std::string> ids;
+        for (const auto* m : {&d, &l, &b})
+            for (const auto& [id, line] : *m) ids.insert(id);
+        r.shortcuts.clear();
+        for (const auto& id : ids) {
+            auto get = [&](const auto& m) { auto it = m.find(id); return it == m.end() ? std::string() : it->second; };
+            std::string line = get(d);
+            pick(line, get(l), get(b));
+            if (!line.empty()) r.shortcuts += line + "\n";
+        }
     }
-    fs::rename(tmp, target, ec);
-    return !ec;
+
+    // the open tabs are this window's: the last window saved restores
+    r.tabs = local.tabs;
+    r.activeTab = local.activeTab;
+
+    // each file's view and bookmarks
+    for (const auto& [path, l] : local.files) {
+        auto bi = base.files.find(path);
+        const FileState* b = bi == base.files.end() ? nullptr : &bi->second;
+        auto [di, fresh] = r.files.try_emplace(path, l);
+        if (fresh) continue; // only here, or forgotten in the file
+        FileState& f = di->second;
+        if (!b || !l.sameView(*b)) {
+            f.pos = l.pos;
+            f.zoomMode = l.zoomMode;
+            f.zoom = l.zoom;
+            f.mode = l.mode;
+        }
+        f.used = std::max(f.used, l.used);
+        // bookmarks by id: local additions, removals and edits since base
+        // win, the rest is the file's
+        auto find = [](const std::vector<Bookmark>& v, uint64_t id) -> const Bookmark* {
+            for (const auto& x : v)
+                if (x.id == id) return &x;
+            return nullptr;
+        };
+        static const std::vector<Bookmark> none;
+        const std::vector<Bookmark>& bb = b ? b->bookmarks : none;
+        std::vector<Bookmark> out;
+        for (const auto& d : f.bookmarks) {
+            const Bookmark* lb = find(l.bookmarks, d.id);
+            const Bookmark* was = find(bb, d.id);
+            if (!lb && was) continue; // removed here
+            out.push_back(lb && (!was || !(*lb == *was)) ? *lb : d);
+        }
+        for (const auto& x : l.bookmarks) {
+            if (find(f.bookmarks, x.id)) continue;
+            const Bookmark* was = find(bb, x.id);
+            // new here, or removed elsewhere after an edit here
+            if (!was || !(x == *was)) out.push_back(x);
+        }
+        std::stable_sort(out.begin(), out.end(), [](const Bookmark& a, const Bookmark& c) {
+            return a.page != c.page ? a.page < c.page : a.y < c.y;
+        });
+        f.bookmarks = std::move(out);
+    }
+
+    // recent files: opened or removed here since base, the rest the file's,
+    // newest first
+    {
+        auto usedIn = [](const Settings& s, const std::string& p) -> uint64_t {
+            auto it = s.files.find(p);
+            return it == s.files.end() ? 0 : it->second.used;
+        };
+        auto has = [](const std::vector<std::string>& v, const std::string& p) { return std::find(v.begin(), v.end(), p) != v.end(); };
+        std::vector<std::string> out;
+        for (const auto& p : disk.recent)
+            if (!(has(base.recent, p) && !has(local.recent, p))) out.push_back(p);
+        for (const auto& p : local.recent)
+            if (!has(out, p) && (!has(base.recent, p) || usedIn(local, p) != usedIn(base, p))) out.push_back(p);
+        std::stable_sort(out.begin(), out.end(), [&](const std::string& a, const std::string& c) { return usedIn(r, a) > usedIn(r, c); });
+        if (out.size() > kRecent) out.resize(kRecent);
+        r.recent = std::move(out);
+    }
+    return r;
+}
+
+bool Settings::saveMerged(const std::string& path, const Settings& base) const
+{
+    std::error_code ec;
+    fs::create_directories(u8(path).parent_path(), ec);
+    Hd::FileLock lock(lockPath(path));
+    if (!lock.locked()) return false;
+    Settings disk;
+    disk.load(path);
+    return Hd::replaceFile(path, merge(disk, *this, base).text());
 }
 
 void Settings::addRecent(const std::string& path)
@@ -227,6 +419,8 @@ FileState& Settings::file(const std::string& path)
 {
     auto [it, fresh] = files.try_emplace(path);
     if (fresh) it->second.mode = defaultMode;
-    it->second.used = ++clock;
+    // the wall clock orders uses across windows; always forward here
+    clock = std::max(clock + 1, nowMs());
+    it->second.used = clock;
     return it->second;
 }

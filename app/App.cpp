@@ -63,7 +63,8 @@ App::App(Hd::Window& window, Hd::Gui& gui, const std::vector<std::string>& files
     , mGui(gui)
 {
     Hd::setConfigName("pdfview");
-    mSettings.load(settingsPath());
+    mSettings.loadLocked(settingsPath());
+    mSaved = mSettings;
     // the look
     mGui.setTheme(mSettings.theme);
     mGui.setUserScale(mSettings.uiScale);
@@ -123,7 +124,8 @@ void App::saveSettings()
     mSettings.winH = g.h;
     mSettings.winMax = g.maximized;
     mSettings.shortcuts = mActions.save();
-    mSettings.save(settingsPath());
+    // Other windows may have saved since: merge into the file's latest state.
+    if (mSettings.saveMerged(settingsPath(), mSaved)) mSaved = mSettings;
 }
 
 // --- tabs

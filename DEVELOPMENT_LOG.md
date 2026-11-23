@@ -871,3 +871,51 @@
 - **Testing:** `tests/test_scroll_motion.cpp` is back, with new cases for the speed curve
   and the gesture (latch on click, stop after a drag, threshold following the UI scale).
   All CTest targets passed. Not tried by hand in the app.
+
+## 2026-11-23 23:37 +03:00 — Merge settings saves from several app windows
+
+- **Changes made:** Each pdfview-app process loaded `settings.ini` once and saved its whole
+  state, so with two windows open the later save erased the other's bookmarks, recent files,
+  views and preferences. On Windows the rename could also fail while the other read the file.
+- **Features implemented:** Saves now merge. Preferences, the window's geometry, each
+  shortcut, each file's view and each bookmark keep the local value only where it changed
+  locally since the last load or successful save; everything else comes from the file's
+  latest contents. The later save wins when both changed the same field or bookmark. The
+  open tabs and active tab are always the saving window's, so a launch without file
+  arguments restores the most recently saved window. Explicit file arguments still open
+  just those files.
+- **How it works:**
+  - `Settings::saveMerged(path, base)` takes `Hd::FileLock` on `settings.ini.lock` (5 s
+    timeout), loads the file, builds `Settings::merge(disk, local, base)` and writes it with
+    `Hd::replaceFile`. On failure the file is unchanged and `App::mSaved` (the base) stays
+    as it was, so the next save retries the same changes. Startup reads under the lock
+    (`loadLocked`).
+  - Merge rules: scalar preferences one by one; window geometry as one value; shortcuts by
+    action id (a reset removes the line); files present only on one side are kept; a file's
+    view (position, zoom, mode) as one value; `used` is the maximum. Bookmarks by id:
+    local additions, removals and edits since base win; a bookmark removed elsewhere is
+    dropped unless edited here. Recent files: the file's list minus entries removed here
+    (Clear List), plus entries opened here since base, ordered newest first by `used`.
+  - Bookmark ids: random 64-bit values, saved as `bookmark_id=<hex>` after each
+    `bookmark=` line, which older versions ignore and still read the bookmark. Bookmarks
+    from older files get an FNV-1a hash of page, y, title and their position among twins,
+    so every window reading the same file agrees.
+  - `used` and `clock` are now wall-clock milliseconds (always increasing within a
+    window), so "newest" compares across windows. Older small counters sort as older.
+  - `Settings::load` resets to defaults first; `text()` is the old serialiser.
+- **Testing:**
+  - New `pdfview_settings_tests` (with the app; compiles `app/Settings.cpp`): a round trip
+    with ids; legacy bookmarks getting identical ids in two loads, twins kept apart and a
+    title with `|`; two windows merging preferences, a removal, an edit, an addition,
+    shortcuts and recent files, then a second save keeping the other's changes; the later
+    save winning on the same theme, bookmark and view; Clear List keeping a file opened
+    elsewhere since; four writer processes making 15 merged saves each at the same time,
+    losing none of the 60 bookmarks and leaving no temporaries.
+  - Two real pdfview-app processes with a separate APPDATA, each opening a different PDF,
+    closed by window message in both orders: the settings kept both files in the recent
+    list and file states, the session held the last-closed window's tab, and no temporary
+    files were left.
+  - All eight CTest targets passed (UCRT64, Windows). Not tested on Linux.
+- **Outstanding issues:** A window doesn't pick up another window's changes while it runs
+  (its UI keeps its own preferences until restarted); only its saves merge.
+- **Recommended features:** Hd's theme editor can adopt `Hd::replaceFile`.

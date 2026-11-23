@@ -83,6 +83,7 @@ private:
     Hd::Window& mWindow;
     Hd::Gui& mGui;
     Settings mSettings;
+    Settings mSaved; // mSettings at the last load or successful save, for merging
     pdfview::Actions mActions;
     pdfview::OutlinePanel mOutline;
     pdfview::ThumbnailPanel mThumbs;
