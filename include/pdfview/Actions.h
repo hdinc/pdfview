@@ -45,6 +45,7 @@ struct Action {
     std::function<void()> run;
     std::function<bool()> enabled; // optional: run only when true
     std::function<bool()> checked; // optional: a toggle's state, for menus
+    std::function<bool(double seconds)> hold; // false falls back to ordinary key repeat
 };
 
 // the actions of a program and their key bindings; matches typed keys to
@@ -76,6 +77,8 @@ public:
     // reads this frame's key presses from ImGui and runs what they complete;
     // nothing while a text field has the keyboard or keys are being captured
     void update();
+    bool holding() const { return mHeld != nullptr; }
+    void clearHeld() { mHeld = nullptr; }
     // set while an editor captures keys
     bool capturing = false;
 
@@ -94,6 +97,9 @@ private:
     KeySeq mBuf;
     Action* mExact = nullptr; // what mBuf completes, while waiting for more
     double mLast = 0;
+    Action* mHeld = nullptr;
+    ImGuiKeyChord mHeldChord = ImGuiKey_None;
+    double mHeldSince = 0;
 };
 
 }

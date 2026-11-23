@@ -75,6 +75,8 @@ void Settings::load(const std::string& path)
                 thumbLabels = v == "1";
             else if (k == "thumb_gaps")
                 thumbGaps = v == "1";
+            else if (k == "animations")
+                animations = v == "1";
             else if (k == "overview_columns")
                 overviewColumns = static_cast<int>(toNum(v, overviewColumns));
             else if (k == "columns")
@@ -157,6 +159,7 @@ bool Settings::save(const std::string& path) const
     o << "thumb_size=" << num(thumbSize) << "\n";
     o << "thumb_labels=" << (thumbLabels ? 1 : 0) << "\n";
     o << "thumb_gaps=" << (thumbGaps ? 1 : 0) << "\n";
+    o << "animations=" << (animations ? 1 : 0) << "\n";
     o << "overview_columns=" << overviewColumns << "\n";
     o << "columns=" << defaultMode.columns << "\n";
     o << "first_alone=" << (defaultMode.firstAlone ? 1 : 0) << "\n";

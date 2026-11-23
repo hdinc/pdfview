@@ -63,7 +63,8 @@ does no file I/O of its own and launches no processes.
 - Ctrl+wheel changes the thumbnail grid by one column per notch within the existing size limits.
 - Thumbnail filtering is per document and replaces the grid once after a 300 ms debounce.
 - In non-continuous view, one wheel notch at the page edge turns the page.
-- In continuous view, page-scroll shortcuts add 90% of the viewport height to the queued destination and ease out over 600 ms.
+- Scroll glides use `ScrollMotion` (`include/pdfview/ScrollMotion.h`), a critically damped spring: steps start at full speed and decay, screenfuls ease in and brake, and new input never makes the speed jump. The cap is 3,200 px/s at scale 1. Document-end jumps and non-continuous row turns are immediate.
+- Held scroll keys (J/K, Up/Down, Space/PgDown, Shift+Space/PgUp) share `Viewer::scrollHeld`: one step per ImGui key-repeat interval within the speed cap (lines 1,800 px/s, screenfuls 3,200 px/s), with the destination kept just over one braking distance ahead, so release stops like the end of one press. With animations off, they use plain key repeat.
 - Middle-click toggles autoscroll. A middle drag autoscrolls until release. In non-continuous view, autoscroll stays in the current row.
 - Double-click word selection and triple-click line selection are limited to Text Selection mode.
 - The page context menu uses standard ImGui styling and Font Awesome icons. Fit Width leaves Overview for the previous normal layout.
@@ -82,7 +83,7 @@ does no file I/O of its own and launches no processes.
 
 ## Current work
 - [Viewer interaction updates](doc/plans/2026-11-22-viewer-interaction-updates.md) is in progress.
-  Non-continuous autoscroll is ready for review. Next, unify document scroll animations and add a toggle.
+  Document scroll animations were rewritten on the spring model and are ready for review. Next, add smooth scrolling and autoscroll to the sidebar.
 
 [doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md).
 - All phases are written and tested on Windows, including after merging upstream Hd's themes and fonts.
@@ -93,5 +94,6 @@ does no file I/O of its own and launches no processes.
 ## Ruled out
 - poppler's core private headers (unstable API).
 - nativefiledialog-extended (GTK build dependency on Linux).
+- Fixed-duration ease-out scroll glides: restarting the curve on each input makes the speed jump.
 - pdfview's own Breeze themes: dropped for upstream Hd's theme system. A Breeze look can come back as a
   custom JSON theme.

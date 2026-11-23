@@ -16,6 +16,7 @@
 #include <pdfview/Actions.h>
 #include <pdfview/History.h>
 #include <pdfview/Layout.h>
+#include <pdfview/ScrollMotion.h>
 #include <pdfview/RenderWorker.h>
 
 namespace pdfview {
@@ -43,6 +44,7 @@ public:
         std::function<void(const std::string&)> onOpenUri;
         // Draws menu items for the right-clicked page. An empty callback uses the viewer's menu.
         std::function<void(Viewer&, int page)> pageMenu;
+        bool animations = true; // easing for wheel and keyboard scrolling
     };
 
     Viewer();
@@ -111,8 +113,8 @@ public:
     void prevPage();
     void first();
     void last();
-    void scrollBy(double dx, double dy); // screen pixels
-    void scrollPage(int dir); // a screenful down (1) or up (-1), animated in continuous view
+    void scrollBy(double dx, double dy); // immediate movement in screen pixels
+    void scrollPage(int dir); // a screenful down (1) or up (-1)
     bool canBack() const { return !mHistory.backs.empty(); }
     bool canForward() const { return !mHistory.forwards.empty(); }
     void back();
@@ -223,7 +225,17 @@ private:
     void applyZoomMode();
     void handleMouse(ImVec2 origin, bool hovered, bool active);
     void drawPageMenu();
-    void updatePageScroll();
+    enum class Glide { Step, Page }; // a wheel notch or line, or a screenful
+    void scrollStep(double dx, double dy, Glide glide, double notches = 1);
+    bool scrollHeld(double step);
+    double screenful() const { return mView.h * 0.9; } // a page step, in screen pixels
+    bool rowFits() const; // the current row fits the view (non-continuous)
+    View destination() const; // where the running glide ends, or the view
+    ScrollMotion::Params glideParams(Glide glide) const;
+    void glideBy(double dx, double dy, Glide glide); // from the destination
+    void scrollTo(View target, Glide glide);
+    void cancelScroll(); // stops where it is and forgets partial notches
+    void updateScrollAnimation();
     void updateAutoscroll();
     void drawAutoscrollMarker(ImDrawList* dl, ImVec2 origin, ImVec2 size) const;
     void drawToolbar();
@@ -288,9 +300,7 @@ private:
     bool mSettling = false;
     // fractional wheel delta at the edge of a non-continuous row
     double mFlipPush = 0;
-    std::optional<double> mPageScrollTarget; // vertical position in document units
-    double mPageScrollStart = 0;
-    double mPageScrollElapsed = 0;
+    ScrollMotion mMotion; // the running glide, within the current row
     bool mAutoscrolling = false;
     int mMenuPage = -1;
     ImVec2 mAutoscrollOrigin{};

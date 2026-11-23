@@ -1,0 +1,120 @@
+#pragma once
+
+// Smooth scrolling as a critically damped spring that pulls the position
+// towards a target. It does not depend on ImGui, so any scrolling surface
+// (the document, the sidebar panels) can drive it.
+//
+// - Velocity never jumps except by an explicit impulse, so new input taken
+//   mid-glide bends the motion instead of restarting a fixed curve.
+// - An input with impulse 1 (wheel notches, arrow keys) starts at full speed
+//   and decays exponentially, like a flick that friction stops. An input with
+//   impulse 0 (Page Down) speeds up gently from rest and settles the same way.
+// - The spring's pull saturates, so long moves cruise at maxSpeed and then
+//   brake without overshooting.
+// - It integrates in small fixed substeps, so the path doesn't depend on the
+//   frame rate. The first step counts as one 60 Hz frame at most, since it
+//   can follow a long idle wait for input.
+
+#include <algorithm>
+#include <cmath>
+
+namespace pdfview {
+
+class ScrollMotion {
+public:
+    struct Vec {
+        double x = 0;
+        double y = 0;
+    };
+
+    struct Params {
+        double stiffness = 18; // 1/s: the decay rate; higher settles sooner
+        double impulse = 1; // 0..1: how much of a new step becomes speed at once
+        double maxSpeed = 1600; // units per second
+    };
+
+    // How far ahead of the position the pull saturates. A target kept this
+    // far ahead cruises at maxSpeed, and when it stops moving the motion
+    // brakes from full speed to rest on it.
+    static double brakingDistance(const Params& p) { return 2 * p.maxSpeed / p.stiffness; }
+
+    bool active() const { return mActive; }
+    Vec target() const { return mTarget; }
+    Vec velocity() const { return mVel; }
+
+    // Sets a new target. `pos` is where the content is now; it starts the
+    // motion when it is at rest.
+    void moveTo(Vec pos, Vec target, Params p)
+    {
+        Vec from = mActive ? mTarget : pos;
+        if (!mActive) {
+            mVel = {};
+            mFresh = true;
+        }
+        mParams = p;
+        mTarget = target;
+        double k = std::clamp(p.impulse, 0.0, 1.0) * p.stiffness;
+        mVel.x += k * (target.x - from.x);
+        mVel.y += k * (target.y - from.y);
+        limitSpeed();
+        mActive = true;
+    }
+
+    // Holds the target in place and drops any speed, e.g. at a hard stop.
+    void stop()
+    {
+        mActive = false;
+        mVel = {};
+    }
+
+    // Advances `pos` by `dt` seconds. It lands exactly on the target once it
+    // is within `epsilon` units and slower than `epsilon` * 20 units/s.
+    // Returns whether the motion goes on.
+    bool step(Vec& pos, double dt, double epsilon)
+    {
+        if (!mActive) return false;
+        if (mFresh) dt = std::min(dt, 1.0 / 60);
+        mFresh = false;
+        constexpr double substep = 1.0 / 1000;
+        const double w = mParams.stiffness;
+        // the pull is capped so its terminal speed is maxSpeed
+        const double reach = brakingDistance(mParams);
+        while (dt > 0) {
+            double h = std::min(dt, substep);
+            dt -= h;
+            Vec d{mTarget.x - pos.x, mTarget.y - pos.y};
+            double len = std::hypot(d.x, d.y);
+            double scale = len > reach ? reach / len : 1;
+            // semi-implicit Euler: stable for w * h well below 1
+            mVel.x += (w * w * d.x * scale - 2 * w * mVel.x) * h;
+            mVel.y += (w * w * d.y * scale - 2 * w * mVel.y) * h;
+            limitSpeed();
+            pos.x += mVel.x * h;
+            pos.y += mVel.y * h;
+        }
+        double left = std::hypot(mTarget.x - pos.x, mTarget.y - pos.y);
+        if (left <= epsilon && std::hypot(mVel.x, mVel.y) <= epsilon * 20) {
+            pos = mTarget;
+            stop();
+        }
+        return mActive;
+    }
+
+private:
+    void limitSpeed()
+    {
+        double s = std::hypot(mVel.x, mVel.y);
+        if (s > mParams.maxSpeed && s > 0) {
+            mVel.x *= mParams.maxSpeed / s;
+            mVel.y *= mParams.maxSpeed / s;
+        }
+    }
+
+    Params mParams;
+    Vec mTarget;
+    Vec mVel;
+    bool mActive = false;
+    bool mFresh = false; // no step taken yet
+};
+
+} // namespace pdfview

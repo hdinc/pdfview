@@ -161,6 +161,7 @@ void App::openOne(const std::string& file, bool select)
     Viewer::Options o;
     o.toolbar = false;
     o.shortcuts = false;
+    o.animations = mSettings.animations;
     o.onOpenUri = [this](const std::string& uri) { mAskUri = uri; };
     o.pageMenu = [this, tab = t.get()](Viewer&, int page) { drawPageMenu(*tab, page); };
     t->viewer = std::make_unique<Viewer>(o);
@@ -315,7 +316,7 @@ void App::menuItem(const char* id, const char* icon)
 
 bool App::needsFrames() const
 {
-    if (mSelect || mActions.pending().n > 0 || mShortcutEditor.capturing()) return true;
+    if (mSelect || mActions.pending().n > 0 || mActions.holding() || mShortcutEditor.capturing()) return true;
     for (const auto& t : mTabs)
         if (t->changedAt >= 0 || (t->id == mActive && t->viewer->needsFrames())) return true;
     return false;
@@ -427,6 +428,10 @@ void App::drawMenus()
         ImGui::Separator();
         drawLookMenu();
         ImGui::Separator();
+        if (ImGui::MenuItem("Animations", nullptr, &mSettings.animations)) {
+            for (auto& t : mTabs) t->viewer->options().animations = mSettings.animations;
+            saveSettings();
+        }
         if (ImGui::SliderInt("Overview columns", &mSettings.overviewColumns, 3, 10))
             for (auto& t : mTabs)
                 t->viewer->setOverviewColumns(mSettings.overviewColumns);
@@ -671,6 +676,7 @@ App::Tab* App::drawTabs()
     mSelect = 0;
     uint64_t shownId = shown ? shown->id : 0;
     if (shownId != mActive) {
+        mActions.clearHeld();
         std::vector<Viewer*> inactive;
         for (auto& t : mTabs) {
             if (t->id == mActive) t->viewer->suspendRendering();

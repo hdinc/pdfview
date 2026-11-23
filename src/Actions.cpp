@@ -274,18 +274,44 @@ void Actions::update()
 {
     ImGuiIO& io = ImGui::GetIO();
     double t = ImGui::GetTime();
-    if (capturing || io.WantTextInput) {
+    if (capturing || io.WantTextInput || io.AppFocusLost) {
         clearPending();
+        clearHeld();
         return;
     }
     auto run = [](Action* a) {
-        if (a && a->run && (!a->enabled || a->enabled())) a->run();
+        if (!a || !a->run || (a->enabled && !a->enabled())) return false;
+        a->run();
+        return true;
     };
+    auto mods = io.KeyMods & ImGuiMod_Mask_;
+    if (mHeld) {
+        auto key = static_cast<ImGuiKey>(mHeldChord & ~ImGuiMod_Mask_);
+        if (mHeldChord != (key | mods) || !ImGui::IsKeyDown(key) || ImGui::IsKeyPressed(key, false))
+            clearHeld();
+    }
     run(tick(t));
     for (int k = ImGuiKey_NamedKey_BEGIN; k < ImGuiKey_NamedKey_END; k++) {
         auto key = static_cast<ImGuiKey>(k);
         if (!bindable(key) || !ImGui::IsKeyPressed(key, true)) continue;
-        run(feed(key | (io.KeyMods & ImGuiMod_Mask_), t));
+        ImGuiKeyChord chord = key | mods;
+        if (mHeld && chord == mHeldChord) continue;
+        Action* action = feed(chord, t);
+        bool hasHold = action && action->hold;
+        if (hasHold && !ImGui::IsKeyPressed(key, false)) continue;
+        if (run(action) && hasHold) {
+            mHeld = action;
+            mHeldChord = chord;
+            mHeldSince = t;
+        }
+    }
+    if (mHeld && mHeld->hold && (!mHeld->enabled || mHeld->enabled())) {
+        constexpr double holdDelay = 0.05;
+        double elapsed = t - mHeldSince - holdDelay;
+        if (elapsed <= 0) return;
+        double dt = std::min(elapsed, static_cast<double>(io.DeltaTime));
+        auto key = static_cast<ImGuiKey>(mHeldChord & ~ImGuiMod_Mask_);
+        if (!mHeld->hold(dt) && ImGui::IsKeyPressed(key, true)) run(mHeld);
     }
 }
 

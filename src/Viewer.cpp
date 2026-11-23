@@ -16,6 +16,14 @@ static constexpr auto kSettle = std::chrono::milliseconds(150);
 // the scrollbar follows the style, so it scales with the UI
 static float scrollbarW() { return ImGui::GetStyle().ScrollbarSize; }
 static constexpr double kWheelStep = 80; // pixels per wheel notch at scale 1
+// Glides follow ScrollMotion's spring. Steps (wheel, lines) start at full
+// speed and decay: 90 % of the way in 130 ms, at rest in about 300 ms.
+// Screenfuls speed up from rest, cruise at the cap and brake: a 900-pixel
+// one is 90 % done in 280 ms and at rest in about 500 ms. A held page key
+// stops about 200 pixels after release.
+static constexpr double kStepStiffness = 18; // per second
+static constexpr double kPageStiffness = 32;
+static constexpr double kMaxScrollSpeed = 3200; // screen pixels per second at scale 1
 
 // the UI's scale (the host's DPI scale, 1 when it sets none): steps and
 // "100%" follow it, so the document looks the same size on any monitor
@@ -82,7 +90,7 @@ void Viewer::open(const std::string& path, const std::string& password)
 
 void Viewer::cancelTileRequests()
 {
-    mPageScrollTarget.reset();
+    cancelScroll();
     mAutoscrolling = false;
     mPending.clear();
     mLastWanted.clear();
@@ -161,7 +169,6 @@ void Viewer::close()
     mLayout = {};
     mView = {};
     mSettling = false;
-    mFlipPush = 0;
     mMenuPage = -1;
     mInfo.clear();
     mLastInfoWanted.clear();
@@ -234,7 +241,7 @@ int Viewer::currentPage() const { return mLaidOut ? mView.currentPage(mLayout) :
 
 void Viewer::zoomAround(double zoom, double sx, double sy)
 {
-    mPageScrollTarget.reset();
+    cancelScroll();
     double before = mView.zoom;
     mView.zoomAt(zoom, sx, sy, mLayout);
     if (mView.zoom != before) {
@@ -316,7 +323,7 @@ void Viewer::leaveOverview()
 
 void Viewer::relayout(ViewMode m)
 {
-    mPageScrollTarget.reset();
+    cancelScroll();
     Dest at = position();
     mMode = m;
     mLayout.build(mWorker->pageSizes(), m);
@@ -379,14 +386,14 @@ Dest Viewer::position() const
 void Viewer::jumpTo(History::Entry e)
 {
     if (!mLaidOut) return;
-    mPageScrollTarget.reset();
+    cancelScroll();
     mView.goToPage(e.page, mLayout, e.y);
 }
 
 void Viewer::goTo(Dest d, bool record)
 {
     if (!mLaidOut || d.page < 0 || d.page >= pageCount()) return;
-    mPageScrollTarget.reset();
+    cancelScroll();
     if (record) mHistory.push(here());
     // a little above the target, so its line shows whole
     mView.goToPage(d.page, mLayout, d.y >= 0 ? std::max(0.0, d.y - 4) : -1);
@@ -412,18 +419,18 @@ void Viewer::first() { goToPage(0, true); }
 
 void Viewer::last()
 {
-    if (!mLaidOut) return;
-    mPageScrollTarget.reset();
+    if (!mLaidOut || pageCount() == 0) return;
+    cancelScroll();
     mHistory.push(here());
     mView.goToPage(pageCount() - 1, mLayout);
-    mView.y = 1e12; // its end
+    mView.y = mView.band(mLayout).second - mView.h / mView.zoom;
     mView.clamp(mLayout);
 }
 
 void Viewer::scrollBy(double dx, double dy)
 {
     if (!mLaidOut) return;
-    mPageScrollTarget.reset();
+    cancelScroll();
     mView.x += dx / mView.zoom;
     mView.y += dy / mView.zoom;
     mView.clamp(mLayout);
@@ -431,34 +438,109 @@ void Viewer::scrollBy(double dx, double dy)
 
 void Viewer::scrollPage(int dir)
 {
+    scrollStep(0, dir * screenful(), Glide::Page);
+}
+
+void Viewer::scrollStep(double dx, double dy, Glide glide, double notches)
+{
     if (!mLaidOut) return;
-    double vh = mView.h / mView.zoom;
-    if (mMode.continuous) {
-        // Repeated presses add to the destination, even mid-scroll.
-        View target = mView;
-        double previousTarget = mPageScrollTarget.value_or(mView.y);
-        target.y = previousTarget + dir * vh * 0.9;
-        target.clamp(mLayout);
-        if (target.y == mView.y) {
-            mPageScrollTarget.reset();
-        } else if (target.y != previousTarget) {
-            mPageScrollTarget = target.y;
-            mPageScrollStart = mView.y;
-            mPageScrollElapsed = 0;
+    if (!mMode.continuous && dy != 0) {
+        auto [top, bottom] = mView.band(mLayout);
+        double height = mView.h / mView.zoom;
+        constexpr double rounding = 1e-6;
+        bool atEdge = rowFits() || (dy > 0 ? mView.y >= bottom - height - rounding : mView.y <= top + rounding);
+        bool reversing = mMotion.active() && (mMotion.target().y - mView.y) * dy < 0;
+        if (atEdge && !reversing) {
+            if (mFlipPush * dy < 0) mFlipPush = 0;
+            mFlipPush += std::copysign(notches, dy);
+            if (std::abs(mFlipPush) >= 1 - rounding) {
+                if (mView.flip(dy > 0 ? 1 : -1, mLayout)) cancelScroll();
+                mFlipPush = 0;
+            }
+            dy = 0;
+        } else {
+            mFlipPush = 0;
         }
-        return;
     }
-    auto [b0, b1] = mView.band(mLayout);
-    if (dir > 0 && mView.y + vh >= b1 - 0.5) {
-        mView.flip(1, mLayout);
-        return;
+    glideBy(dx, dy, glide);
+}
+
+bool Viewer::scrollHeld(double step)
+{
+    // Without animations, and on fitted rows (which turn), held keys use
+    // plain key repeat.
+    if (!mLaidOut || !mOpt.animations || (!mMode.continuous && rowFits())) return false;
+    // A held key moves a step per key-repeat interval, as repeated presses
+    // would, but continuously and within the speed cap: 1,800 pixels per
+    // second for lines at ImGui's 50 ms, the cap for screenfuls. Repeats
+    // would queue steps to travel after the release; instead the
+    // destination stays a little over one braking distance ahead, so on
+    // release the view brakes as the end of a single press does. A press's
+    // own step still completes, and a zoomed non-continuous row stops at its
+    // edge without turning.
+    float rate = ImGui::GetIO().KeyRepeatRate;
+    ScrollMotion::Params p = glideParams(Glide::Page);
+    p.maxSpeed = std::min(p.maxSpeed, std::abs(step) / mView.zoom / (rate > 0 ? rate : 0.05));
+    double dir = step > 0 ? 1 : -1;
+    View target = destination();
+    double ahead = mView.y + dir * 1.25 * ScrollMotion::brakingDistance(p);
+    if ((ahead - target.y) * dir > 0) {
+        target.y = ahead;
+        target.clamp(mLayout);
+        mMotion.moveTo({mView.x, mView.y}, {target.x, target.y}, p);
     }
-    if (dir < 0 && mView.y <= b0 + 0.5) {
-        mView.flip(-1, mLayout);
-        return;
+    return true;
+}
+
+bool Viewer::rowFits() const
+{
+    auto [top, bottom] = mView.band(mLayout);
+    return bottom - top <= mView.h / mView.zoom + 1e-6;
+}
+
+View Viewer::destination() const
+{
+    View v = mView;
+    if (mMotion.active()) {
+        v.x = mMotion.target().x;
+        v.y = mMotion.target().y;
     }
-    mView.y += dir * vh * 0.9;
-    mView.clamp(mLayout);
+    return v;
+}
+
+ScrollMotion::Params Viewer::glideParams(Glide glide) const
+{
+    ScrollMotion::Params p;
+    p.stiffness = glide == Glide::Page ? kPageStiffness : kStepStiffness;
+    p.impulse = glide == Glide::Page ? 0 : 1;
+    p.maxSpeed = kMaxScrollSpeed * uiScale() / mView.zoom; // in document units
+    return p;
+}
+
+void Viewer::glideBy(double dx, double dy, Glide glide)
+{
+    // Steps add up at the destination, so the input rate doesn't change the distance.
+    View target = destination();
+    target.x += dx / mView.zoom;
+    target.y += dy / mView.zoom;
+    target.clamp(mLayout);
+    scrollTo(target, glide);
+}
+
+void Viewer::scrollTo(View target, Glide glide)
+{
+    if (mOpt.animations) {
+        mMotion.moveTo({mView.x, mView.y}, {target.x, target.y}, glideParams(glide));
+    } else {
+        mMotion.stop();
+        mView = target;
+    }
+}
+
+void Viewer::cancelScroll()
+{
+    mMotion.stop();
+    mFlipPush = 0;
 }
 
 void Viewer::back()
@@ -519,7 +601,7 @@ bool Viewer::visibleRect(int page, Rect& r) const
 void Viewer::centerOn(int page, double px, double py)
 {
     if (!mLaidOut || page < 0 || page >= pageCount()) return;
-    mPageScrollTarget.reset();
+    cancelScroll();
     mView.row = mLayout.rowOf[static_cast<size_t>(page)];
     mView.x = mLayout.left(page) + px - mView.w / mView.zoom / 2;
     mView.y = mLayout.top[static_cast<size_t>(page)] + py - mView.h / mView.zoom / 2;
@@ -868,7 +950,7 @@ void Viewer::showMatch()
 {
     auto it = mFind.matches.find(mFind.page);
     if (!mLaidOut || it == mFind.matches.end() || mFind.index < 0 || mFind.index >= static_cast<int>(it->second.size())) return;
-    mPageScrollTarget.reset();
+    cancelScroll();
     const Rect& r = it->second[static_cast<size_t>(mFind.index)];
     int p = mFind.page;
     double vw = mView.w / mView.zoom, vh = mView.h / mView.zoom;
@@ -1116,10 +1198,11 @@ ImTextureID Viewer::pageTexture(int page, double pixelWidth, int& w, int& h)
 
 bool Viewer::needsFrames() const
 {
-    return mPageScrollTarget || mAutoscrolling || mSettling || !mPending.empty() || state() == State::Loading
+    return mMotion.active() || mAutoscrolling || mSettling || !mPending.empty() || state() == State::Loading
         || mThumbnailFind.startAt >= 0 || mThumbnailFind.generation
         || (mThumbnailFind.filtered && mThumbnailFind.publishedOn == mFrame)
-        || mCopyPending || (mPress.on && mPress.selecting) || (mActions && mActions->pending().n > 0);
+        || mCopyPending || (mPress.on && mPress.selecting)
+        || (mActions && (mActions->pending().n > 0 || mActions->holding()));
 }
 
 double Viewer::fbScale() const
@@ -1254,7 +1337,7 @@ void Viewer::handleMouse(ImVec2 origin, bool hovered, bool active)
     double px = 0, py = 0;
     bool onPage = (hovered || active) && pageAtScreen(sx, sy, page, px, py);
     if (hovered && !active && onPage && ImGui::IsMouseReleased(ImGuiMouseButton_Right)) {
-        mPageScrollTarget.reset();
+        cancelScroll();
         mMenuPage = page;
         ImGui::OpenPopup("##page-menu");
     }
@@ -1266,37 +1349,19 @@ void Viewer::handleMouse(ImVec2 origin, bool hovered, bool active)
     }
 
     if (hovered) {
-        if (io.MouseWheel != 0 || io.MouseWheelH != 0) mPageScrollTarget.reset();
         if (io.KeyCtrl && io.MouseWheel != 0) {
             mZoomMode = ZoomMode::Free;
             zoomAround(mView.zoom * std::pow(1.15, io.MouseWheel), sx, sy);
         } else if (io.MouseWheel != 0 || io.MouseWheelH != 0) {
             double dy = io.MouseWheel, dx = io.MouseWheelH;
             if (io.KeyShift) std::swap(dx, dy);
-            if (!mMode.continuous && dy != 0) {
-                // At the end of a row, one notch flips it. Precision wheels
-                // can deliver a notch as several deltas in the same direction.
-                auto [b0, b1] = mView.band(mLayout);
-                double vh = mView.h / mView.zoom;
-                bool atEnd = dy < 0 ? mView.y + vh >= b1 - 0.5 : mView.y <= b0 + 0.5;
-                if (atEnd) {
-                    if (mFlipPush * dy < 0) mFlipPush = 0;
-                    mFlipPush += dy;
-                    if (std::abs(mFlipPush) >= 1) {
-                        mView.flip(dy < 0 ? 1 : -1, mLayout);
-                        mFlipPush = 0;
-                    }
-                    dy = 0;
-                } else
-                    mFlipPush = 0;
-            }
-            mView.y -= dy * kWheelStep * uiScale() / mView.zoom;
-            mView.x -= dx * kWheelStep * uiScale() / mView.zoom;
+            double step = kWheelStep * uiScale();
+            scrollStep(-dx * step, -dy * step, Glide::Step, std::abs(dy));
         }
     }
 
     if (ImGui::IsItemActivated()) {
-        mPageScrollTarget.reset();
+        cancelScroll();
         mPress = {};
         mPress.on = !stopClick;
         mPress.button = ImGui::IsMouseDown(ImGuiMouseButton_Left) ? ImGuiMouseButton_Left : ImGuiMouseButton_Middle;
@@ -1325,7 +1390,7 @@ void Viewer::handleMouse(ImVec2 origin, bool hovered, bool active)
         if (!mPress.dragged && d.x * d.x + d.y * d.y > 9) mPress.dragged = true;
     }
     if (mPress.on && active && !middle) {
-        if (mPress.dragged) mPageScrollTarget.reset();
+        if (mPress.dragged) cancelScroll();
         if (mPress.dragged && mPress.selecting) {
             int p;
             double x, y;
@@ -1389,16 +1454,20 @@ void Viewer::drawPageMenu()
     ImGui::EndPopup();
 }
 
-void Viewer::updatePageScroll()
+void Viewer::updateScrollAnimation()
 {
-    if (!mPageScrollTarget) return;
-    constexpr double duration = 0.60;
-    // The first frame can follow a long wait for input.
-    mPageScrollElapsed += std::min(ImGui::GetIO().DeltaTime, 0.05f);
-    double remaining = std::max(0.0, 1 - mPageScrollElapsed / duration);
-    // Cubic ease-out.
-    mView.y = std::lerp(*mPageScrollTarget, mPageScrollStart, remaining * remaining * remaining);
-    if (remaining == 0) mPageScrollTarget.reset();
+    if (!mMotion.active()) return;
+    ScrollMotion::Vec pos{mView.x, mView.y};
+    if (mOpt.animations) {
+        // A slow frame catches up, within limits.
+        mMotion.step(pos, std::min(ImGui::GetIO().DeltaTime, 0.05f), 0.5 / mView.zoom); // half a screen pixel
+    } else {
+        // Animations were turned off mid-glide: finish it.
+        pos = mMotion.target();
+        mMotion.stop();
+    }
+    mView.x = pos.x;
+    mView.y = pos.y;
 }
 
 void Viewer::updateAutoscroll()
@@ -1412,7 +1481,7 @@ void Viewer::updateAutoscroll()
     }
     if (!ImGui::IsMousePosValid()) return;
 
-    mPageScrollTarget.reset();
+    cancelScroll();
     const ImGuiIO& io = ImGui::GetIO();
     double scale = uiScale();
     auto distance = [&](double offset) {
@@ -1626,7 +1695,7 @@ void Viewer::drawScrollbar(ImVec2 pos, ImVec2 size)
     ImGui::InvisibleButton("##vscroll", size);
     bool held = ImGui::IsItemActive();
     if (held) {
-        mPageScrollTarget.reset();
+        cancelScroll();
         float my = ImGui::GetIO().MousePos.y;
         if (ImGui::IsItemActivated()) mGrab = (my >= thumbY && my <= thumbY + thumbH) ? my - thumbY : thumbH / 2;
         mView.y = b0 + std::clamp((my - mGrab - pos.y) / track, 0.0f, 1.0f) * maxY;
@@ -1668,13 +1737,14 @@ void Viewer::draw(const char* id, ImVec2 size)
     }
 
     if (mOpt.shortcuts && ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows)) actions().update();
+    else if (mActions) mActions->clearHeld();
     if (mOpt.toolbar) drawToolbar();
     ImVec2 origin = ImGui::GetCursorScreenPos();
     mOrigin = origin;
     ImVec2 avail = ImGui::GetContentRegionAvail();
     ImVec2 canvas{std::max(1.0f, avail.x - scrollbarW()), std::max(1.0f, avail.y)};
     if (mView.w != canvas.x || mView.h != canvas.y) {
-        mPageScrollTarget.reset();
+        cancelScroll();
         // keep the page under the view's centre on resize
         double cy = mView.y + mView.h / mView.zoom / 2;
         mView.w = canvas.x;
@@ -1694,7 +1764,7 @@ void Viewer::draw(const char* id, ImVec2 size)
     handleMouse(origin, hovered, active);
     drawPageMenu();
     updateAutoscroll();
-    updatePageScroll();
+    updateScrollAnimation();
     if (mAutoscrolling && hovered)
         ImGui::SetMouseCursor(mLayout.width > mView.w / mView.zoom ? ImGuiMouseCursor_ResizeAll : ImGuiMouseCursor_ResizeNS);
     drawScrollbar({origin.x + canvas.x, origin.y}, {scrollbarW(), canvas.y});
@@ -1743,13 +1813,30 @@ void Viewer::registerActions(Actions& acts, std::function<Viewer*()> current)
         a.enabled = ready;
         return a;
     };
-    static constexpr double line = 60; // pixels at scale 1
-    add("view.scroll_up", "Scroll Up", "Navigation", "Up", "K", [](Viewer& v) { v.scrollBy(0, -line * uiScale()); });
-    add("view.scroll_down", "Scroll Down", "Navigation", "Down", "J", [](Viewer& v) { v.scrollBy(0, line * uiScale()); });
-    add("view.scroll_left", "Scroll Left", "Navigation", "Left", "", [](Viewer& v) { v.scrollBy(-line * uiScale(), 0); });
-    add("view.scroll_right", "Scroll Right", "Navigation", "Right", "", [](Viewer& v) { v.scrollBy(line * uiScale(), 0); });
-    add("view.page_down", "Scroll Page Down", "Navigation", "Space", "PgDown", [](Viewer& v) { v.scrollPage(1); });
-    add("view.page_up", "Scroll Page Up", "Navigation", "Shift+Space", "PgUp", [](Viewer& v) { v.scrollPage(-1); });
+    static constexpr double verticalLine = 90; // pixels at scale 1
+    static constexpr double horizontalLine = 60;
+    auto held = [current](double step) {
+        return [current, step](double) {
+            Viewer* v = current();
+            return v && v->scrollHeld(step * uiScale());
+        };
+    };
+    auto heldPage = [current](int dir) {
+        return [current, dir](double) {
+            Viewer* v = current();
+            return v && v->scrollHeld(dir * v->screenful());
+        };
+    };
+    add("view.scroll_up", "Scroll Up", "Navigation", "Up", "K", [](Viewer& v) { v.scrollStep(0, -verticalLine * uiScale(), Glide::Step); })
+        .hold = held(-verticalLine);
+    add("view.scroll_down", "Scroll Down", "Navigation", "Down", "J", [](Viewer& v) { v.scrollStep(0, verticalLine * uiScale(), Glide::Step); })
+        .hold = held(verticalLine);
+    add("view.scroll_left", "Scroll Left", "Navigation", "Left", "", [](Viewer& v) { v.scrollStep(-horizontalLine * uiScale(), 0, Glide::Step); });
+    add("view.scroll_right", "Scroll Right", "Navigation", "Right", "", [](Viewer& v) { v.scrollStep(horizontalLine * uiScale(), 0, Glide::Step); });
+    add("view.page_down", "Scroll Page Down", "Navigation", "Space", "PgDown", [](Viewer& v) { v.scrollPage(1); })
+        .hold = heldPage(1);
+    add("view.page_up", "Scroll Page Up", "Navigation", "Shift+Space", "PgUp", [](Viewer& v) { v.scrollPage(-1); })
+        .hold = heldPage(-1);
     add("go.next_page", "Next Page", "Navigation", "Ctrl+PgDown", "", [](Viewer& v) { v.nextPage(); });
     add("go.prev_page", "Previous Page", "Navigation", "Ctrl+PgUp", "", [](Viewer& v) { v.prevPage(); });
     add("go.first", "Beginning of the Document", "Navigation", "Home", "G, G", [](Viewer& v) { v.first(); });

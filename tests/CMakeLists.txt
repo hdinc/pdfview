@@ -2,6 +2,7 @@ add_executable(pdfview_tests
     main.cpp
     test_pdfview.cpp
     test_actions.cpp
+    test_scroll_motion.cpp
 )
 target_include_directories(pdfview_tests PRIVATE ${PROJECT_SOURCE_DIR}/deps/doctest)
 target_link_libraries(pdfview_tests PRIVATE pdfview PkgConfig::PDFVIEW_POPPLER)

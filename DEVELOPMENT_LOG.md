@@ -636,3 +636,163 @@
   autoscroll, the middle-button gestures, and ordinary wheel and Space page turns.
 - The page menu is committed as ede9821. The autoscroll fix is uncommitted for review.
   Both original stashes remain intact.
+
+## 2026-11-22 23:38 +03:00 — Unify document scroll animation and add an Animations toggle
+
+- Wheel and line shortcuts glide over 150 ms. Space and Shift+Space, gg/G, and their alternate
+  bindings use the 600 ms ease-out. Repeated inputs accumulate at the queued destination.
+  In non-continuous view, zoomed rows glide to their edge before another input turns the
+  page. Fitted rows and first or last commands crossing rows turn immediately.
+- Settings > Animations defaults to on and is saved on change. Turning it off completes the
+  queued move and makes later moves immediate. Embedding hosts can set the viewer option.
+- Rebuilt build/bin/pdfview-app.exe with UCRT64. All six CTest targets passed. Windows OpenGL
+  checks covered wheel and keys, repeated and reversed input, history, row turns, the Settings
+  toggle and persistence, and middle-button autoscroll. Across 11 page-gap frames the viewport
+  matched the easing curve with no measured displacement error. Mean frame time was 16.3 ms
+  at gap crossings and 15.5 ms elsewhere in that run.
+- The autoscroll fix is committed as b0a8855. Document animations remain uncommitted for
+  review. Both original stashes remain intact.
+
+## 2026-11-22 23:47 +03:00 — Soften scroll starts and make held line scrolling continuous
+
+- Switched the 150 ms and 600 ms glides to quadratic ease-out, reducing their initial speed.
+  A held scroll-up or scroll-down binding transitions after 50 ms to a steady 540 screen
+  pixels per second at scale 1. Releasing the key stops movement. A zoomed non-continuous
+  row stops the hold at the edge, and fitted rows still turn at the ordinary repeat rate.
+- Built build/bin/pdfview-app.exe with UCRT64. All six CTest targets passed. Windows OpenGL
+  checks measured held J/K at variable frame intervals, verified release, a rebound shortcut
+  and modifier release, zoomed row edges, and tab switching. The document navigation,
+  Animations toggle, and page-gap checks also passed.
+- The scroll animation fix is uncommitted. Both original stashes remain intact.
+
+## 2026-11-22 23:57 +03:00 — Cap glide speed and restore immediate document jumps
+
+- gg/G and Home/End jump immediately and still record navigation history. Increased
+  J/K and Up/Down taps from 60 to 90 pixels at scale 1. Held vertical keys still scroll
+  steadily at 540 pixels per second at scale 1.
+- Longer glides extend their duration to cap total viewport speed at 1,600 pixels per
+  second at scale 1, including diagonal motion.
+- Built build/bin/pdfview-app.exe with UCRT64. All six CTest targets passed. A Windows
+  OpenGL check measured a peak of 1,599.88 pixels per second at scale 1 and an exact
+  landing. Immediate jumps, larger taps, held keys, page turns, and the toggle passed.
+- The animation fix is uncommitted. Both original stashes remain intact.
+
+## 2026-11-23 22:11 +03:00 — Rewrite document scroll glides as a damped spring
+
+- **Changes made:** Replaced the fixed-duration quadratic ease-out with `ScrollMotion`
+  (new header-only `include/pdfview/ScrollMotion.h`, no ImGui dependency). The old glide
+  restarted its curve from the current position on every wheel notch or key press, so the
+  speed jumped with each input, and the speed cap stretched the duration, which changed
+  the curve's shape.
+- **How it works:** The view is pulled towards the queued target by a critically damped
+  spring, integrated in 1 ms substeps so the path does not depend on the frame rate.
+  - Wheel notches and line keys add an impulse equal to stiffness × step. From rest this
+    is an exact exponential decay: full speed at once, 90 % of the way in 130 ms and at
+    rest in about 300 ms (stiffness 18/s).
+  - Space/Page Down add no impulse: they speed up from rest, cruise at the cap and brake.
+    A 900-pixel screenful is 90 % done in 550 ms and at rest in about 870 ms (stiffness 20/s).
+  - The pull saturates at 2 × maxSpeed / stiffness, so long moves cruise at 1,600 px/s at
+    scale 1 and brake without overshooting. Velocity is also clamped to the cap.
+  - Input arriving mid-glide moves the target and only adds its impulse, so speed stays
+    continuous; a reversed notch turns the motion back smoothly.
+  - Held J/K now feed per-frame steps into the same motion (540 px/s, about 27 px behind
+    the target) and coast to a stop over about 250 ms on release, instead of switching to
+    immediate movement and dropping the tap's remaining glide. With animations off they
+    still move immediately.
+  - The first frame of a glide counts as at most 1/60 s, because it can follow a long
+    idle wait; later frames catch up by at most 50 ms.
+  - `Viewer::endScroll` ends a glide; `cancelScroll` also forgets partial notches at a
+    non-continuous row edge, so precision touchpads still turn rows with animations off.
+  - Row-edge turns, immediate gg/G and Home/End, and the Animations toggle keep their
+    previous behavior.
+- **Testing:** New `tests/test_scroll_motion.cpp`: a step's initial speed and landing
+  without overshoot, a screenful's ease-in, speed cap and landing, the same path at 30 and
+  150 fps, continuous speed on retarget, reversal, and stop. All six CTest targets passed
+  with the UCRT64 build. A scratch program measured the timings above at 60 fps. The feel
+  in the running app was not checked by hand.
+- **Outstanding issues:** The 1,600 px/s cap also limits fast wheel spins to about
+  20 notches per second; raise it if fast spins feel like they lag.
+- **Next steps:** Try the glides by hand in the app, then reuse `ScrollMotion` for the
+  sidebar panels.
+
+## 2026-11-23 22:20 +03:00 — Stop held Space scrolling on release
+
+- **Changes made:** Holding Space/PgDown (or Shift+Space/PgUp) used key repeat, which
+  queued another screenful on every repeat; after release the view kept going through all
+  of them. The page actions now have a hold handler, `Viewer::pageHeld`, so key repeat no
+  longer queues screenfuls while the key is down.
+- **How it works:** While held, the destination is kept 1.25 × the braking distance ahead
+  of the view (`ScrollMotion::brakingDistance` = 2 × maxSpeed / stiffness, about 200 px at
+  scale 1 and 100 %). The view cruises at 1,600 px/s; on release the target stops moving
+  and the view brakes as the end of a single press does, within about 0.4 s. The first
+  press's screenful still completes. With animations off, or on a fitted non-continuous
+  row, the hold falls back to ordinary key repeat (whole screenfuls, or row turns). A
+  zoomed non-continuous row stops at its edge while held. `Viewer::glideParams` now holds
+  the per-glide spring settings in one place.
+- **Testing:** Added a ScrollMotion test: holding the target ahead reaches the cap, and
+  after release the motion stops within the lead distance in under 0.5 s without
+  overshoot. All six CTest targets passed. Not yet checked by hand in the app.
+
+## 2026-11-23 22:43 +03:00 — Double the scroll speed cap
+
+- **Changes made:** `kMaxScrollSpeed` went from 1,600 to 3,200 px/s at scale 1, and
+  `kPageStiffness` from 20 to 32/s, so braking stays short at the higher speed.
+- **How it works:** Measured at 60 fps with the ScrollMotion model: a single 900-pixel
+  screenful is 90 % done in 283 ms (was 550 ms) and at rest in 500 ms (was 867 ms). Held
+  Space cruises at 3,200 px/s and stops about 200 px (267 ms) after release (was 173 px,
+  383 ms). Wheel and line steps are unchanged for single notches; fast wheel spins can now
+  reach about 40 notches per second before the cap.
+- **Testing:** All six CTest targets passed. Not yet checked by hand in the app.
+
+## 2026-11-23 22:49 +03:00 — Match held J/K speed to repeated presses
+
+- **Changes made:** Held scroll-up/scroll-down (J/K, Up/Down) moved at a fixed 540 px/s,
+  slower than tapping, while held Space already matched repeated presses. The held speed
+  is now one 90-pixel line per `ImGuiIO::KeyRepeatRate` interval: 1,800 px/s at scale 1
+  with ImGui's 50 ms default, the speed key repeat would give, but continuous.
+- **How it works:** The hold lambdas in `Viewer::registerActions` read the repeat rate
+  each frame (falling back to 50 ms if it is unset). On release the view coasts about
+  100 px (one line) over roughly 300 ms, as the step glide's stiffness of 18/s implies.
+- **Testing:** All six CTest targets passed. Not yet checked by hand in the app.
+
+## 2026-11-23 23:00 +03:00 — Simplify the document scroll code
+
+- **Changes made:** Removed duplicate glide state and repeated logic without changing
+  behavior.
+  - `ScrollMotion` is now the only glide state; the `std::optional<View> mScroll` copy of
+    its target is gone. A glide never leaves its row (row turns cancel it), so
+    `Viewer::destination()` rebuilds the target view from `mView` and the motion's target.
+  - The first-frame time cap (`mScrollFresh`) moved into `ScrollMotion`, so the sidebar
+    gets it for free when it adopts the class.
+  - New helpers `rowFits()` (three copies of the fitted-row test) and `glideBy()` (the
+    add-at-destination, clamp and glide sequence, shared by wheel, line and held-key steps).
+  - `endScroll` merged into `cancelScroll`; `scrollHeld` lost its own animations-off
+    branch, since `scrollTo` already moves immediately then.
+  - Removed the new `Viewer::setAnimations`: the app sets `options().animations`, and
+    `updateScrollAnimation` finishes a running glide on the next frame when it is off.
+- **Testing:** Added a test for the first-step cap and moved the frame-rate test past it.
+  All six CTest targets passed. Not checked by hand in the app.
+
+## 2026-11-23 23:04 +03:00 — Held J/K jump by lines when animations are off
+
+- **Changes made:** With Animations off, a held scroll-up/scroll-down key still moved a
+  little every frame, which looked smooth. `Viewer::scrollHeld` now declines the hold
+  when animations are off, as `pageHeld` already did, so ImGui's key repeat runs the
+  action and the view jumps one 90-pixel line per repeat.
+- **Testing:** All six CTest targets passed. Not checked by hand in the app.
+
+## 2026-11-23 23:08 +03:00 — One hold rule for line and page keys
+
+- **Changes made:** Held J/K (per-frame impulse steps) and held Space (destination kept
+  ahead) had separate code. `Viewer::pageHeld` is gone; `Viewer::scrollHeld(step)` now
+  serves both, given one press's signed step in screen pixels. The registry's hold
+  lambdas come from two small factories, and `Viewer::screenful()` names the 0.9-screen
+  page step that `scrollPage` and the holds share.
+- **How it works:** A held key uses the screenful glide's spring (stiffness 32/s, no
+  impulse) with its speed limited to step ÷ `KeyRepeatRate`, under the 3,200 px/s cap:
+  1,800 px/s for 90-pixel lines at ImGui's 50 ms, the cap for screenfuls. The destination
+  stays 1.25 braking distances ahead, so release brakes like the end of a single press, and
+  a press's own step still completes. Measured at 60 fps: held J moves 1,783 px in the
+  first second and coasts 111 px in 233 ms on release (was about 100 px in 300 ms); held
+  Space is unchanged (3,162 px/s, 197 px in 267 ms).
+- **Testing:** All six CTest targets passed. Not checked by hand in the app.
