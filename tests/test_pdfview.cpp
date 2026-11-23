@@ -217,18 +217,18 @@ TEST_CASE("Layout and View geometry")
     Layout l;
     l.gap = 10;
     l.build({{100, 200}, {300, 100}, {100, 200}});
-    CHECK(l.width == doctest::Approx(320));
-    CHECK(l.top[0] == doctest::Approx(10));
-    CHECK(l.top[1] == doctest::Approx(220));
-    CHECK(l.top[2] == doctest::Approx(330));
-    CHECK(l.height == doctest::Approx(540));
-    CHECK(l.left(0) == doctest::Approx(110));
+    CHECK(l.width == doctest::Approx(300)); // no margin around the document
+    CHECK(l.top[0] == doctest::Approx(0));
+    CHECK(l.top[1] == doctest::Approx(210));
+    CHECK(l.top[2] == doctest::Approx(320));
+    CHECK(l.height == doctest::Approx(520));
+    CHECK(l.left(0) == doctest::Approx(100));
     CHECK(l.pageAt(0) == 0);
     CHECK(l.pageAt(250) == 1);
     CHECK(l.pageAt(10000) == 2);
     CHECK(l.range(215, 225) == std::pair{1, 1});
     CHECK(l.range(0, 1000) == std::pair{0, 2});
-    CHECK(l.range(212, 216).first > l.range(212, 216).second); // in a gap
+    CHECK(l.range(202, 206).first > l.range(202, 206).second); // in a gap
 
     View v;
     v.w = 160;
@@ -246,10 +246,74 @@ TEST_CASE("Layout and View geometry")
     v.zoomAt(0.25, 0, 0, l);
     CHECK(v.x == doctest::Approx((l.width - v.w / v.zoom) / 2));
     // fit width of the wide page
-    CHECK(v.fitWidth(l, 1) == doctest::Approx(160.0 / 320));
+    CHECK(v.fitWidth(l, 1) == doctest::Approx(160.0 / 300));
     v.zoom = 1;
     v.goToPage(2, l);
     CHECK(v.currentPage(l) == 2);
+}
+
+TEST_CASE("fitted pages reach the view's edges")
+{
+    // mixed sizes: a narrow page, a wide one, a tall one
+    std::vector<PageSize> pages{{100, 200}, {300, 100}, {100, 400}};
+    Layout l;
+    l.gap = 10;
+    View v;
+    v.w = 600;
+    v.h = 400;
+
+    // one column: Fit Width makes the page exactly as wide as the view, its
+    // left edge at the view's left
+    l.build(pages, {1, false, true});
+    for (int p = 0; p < 3; p++) {
+        v.zoom = v.fitWidth(l, p);
+        CHECK(l.pages[static_cast<size_t>(p)].w * v.zoom == doctest::Approx(v.w));
+        v.x = -1e6;
+        v.goToPage(p, l);
+        CHECK((l.left(p) - v.x) * v.zoom == doctest::Approx(0).epsilon(1e-9));
+        CHECK(v.y == doctest::Approx(l.top[static_cast<size_t>(p)]));
+    }
+    // Fit Page: the page fills the width or the height, its top at the view's top
+    for (int p = 0; p < 3; p++) {
+        const PageSize& s = l.pages[static_cast<size_t>(p)];
+        v.zoom = v.fitPage(l, p);
+        bool fillsWidth = std::abs(s.w * v.zoom - v.w) < 1e-6, fillsHeight = std::abs(s.h * v.zoom - v.h) < 1e-6;
+        CHECK((fillsWidth || fillsHeight));
+        CHECK(s.w * v.zoom <= v.w + 1e-6);
+        CHECK(s.h * v.zoom <= v.h + 1e-6);
+        v.goToPage(p, l);
+        CHECK(v.y == doctest::Approx(l.top[static_cast<size_t>(p)]));
+    }
+    // the first page's top and the last page's bottom are the document's ends
+    v.zoom = v.fitWidth(l, 0);
+    v.y = -1e6;
+    v.clamp(l);
+    CHECK(v.y == doctest::Approx(0));
+    v.y = 1e6;
+    v.clamp(l);
+    CHECK((v.y + v.h / v.zoom) == doctest::Approx(l.top[2] + 400));
+
+    // two columns: both columns fill the width (each as wide as the widest
+    // page, so the zoom stays the same from row to row)
+    l.build(pages, {2, false, true});
+    v.zoom = v.fitWidth(l, 0);
+    CHECK(l.width * v.zoom == doctest::Approx(v.w));
+    // same-size pages: the pair fills it exactly
+    l.build({{100, 200}, {100, 200}}, {2, false, true});
+    v.zoom = v.fitWidth(l, 0);
+    CHECK((l.left(1) + l.pages[1].w - l.left(0)) * v.zoom == doctest::Approx(v.w));
+    // first alone: the pairs below still fill it
+    l.build(pages, {2, true, true});
+    v.zoom = v.fitWidth(l, 1);
+    CHECK(l.width * v.zoom == doctest::Approx(v.w));
+
+    // not continuous: a fitted page fills its row's band exactly, so nothing scrolls
+    l.build(pages, {1, false, false});
+    v.zoom = v.fitPage(l, 2);
+    v.goToPage(2, l);
+    auto [b0, b1] = v.band(l);
+    CHECK((b1 - b0) * v.zoom <= v.h + 1e-6);
+    CHECK(v.y == doctest::Approx(l.top[2]));
 }
 
 TEST_CASE("levels and visible tiles")
@@ -419,34 +483,34 @@ TEST_CASE("Layout: view modes")
     // facing: pairs meeting in the middle
     l.build(five, {2, false, true});
     CHECK(l.rows() == 3);
-    CHECK(l.width == doctest::Approx(230));
-    CHECK(l.left(0) == doctest::Approx(10));
-    CHECK(l.left(1) == doctest::Approx(120));
-    CHECK(l.left(2) == doctest::Approx(10));
-    CHECK(l.left(3) == doctest::Approx(120));
+    CHECK(l.width == doctest::Approx(210));
+    CHECK(l.left(0) == doctest::Approx(0));
+    CHECK(l.left(1) == doctest::Approx(110));
+    CHECK(l.left(2) == doctest::Approx(0));
+    CHECK(l.left(3) == doctest::Approx(110));
     CHECK(l.top[3] == doctest::Approx(l.rowTop[1] + 50)); // centred in its row
-    CHECK(l.left(4) == doctest::Approx(10));
+    CHECK(l.left(4) == doctest::Approx(0));
     CHECK(l.rowOf[4] == 2);
     CHECK(l.range(0, 50) == std::pair{0, 1});
     CHECK(l.range(0, 300) == std::pair{0, 3});
     CHECK(l.pageAt(150, 100) == 1);
     CHECK(l.pageAt(5, 100) == 0);
     CHECK(l.pageAt(150, 450) == 4); // alone in its row
-    CHECK(l.height == doctest::Approx(10 + 3 * 210));
+    CHECK(l.height == doctest::Approx(3 * 200 + 2 * 10));
 
     // the first page alone, centred
     l.build(five, {2, true, true});
     CHECK(l.rows() == 3);
-    CHECK(l.left(0) == doctest::Approx(65));
+    CHECK(l.left(0) == doctest::Approx(55));
     CHECK(l.rowFirst == std::vector<int>{0, 1, 3});
-    CHECK(l.left(1) == doctest::Approx(10));
-    CHECK(l.left(3) == doctest::Approx(10 + 100 - 50)); // left of the pair: against the middle
+    CHECK(l.left(1) == doctest::Approx(0));
+    CHECK(l.left(3) == doctest::Approx(100 - 50)); // left of the pair: against the middle
 
     // overview: 3 columns, centred in each
     l.build(five, {3, false, true});
     CHECK(l.rows() == 2);
-    CHECK(l.left(2) == doctest::Approx(230));
-    CHECK(l.left(3) == doctest::Approx(10 + 25));
+    CHECK(l.left(2) == doctest::Approx(220));
+    CHECK(l.left(3) == doctest::Approx(25));
     CHECK(l.rowWidth(0) == doctest::Approx(l.width));
 
     // fits: the rows' width
@@ -465,14 +529,14 @@ TEST_CASE("Layout: view modes")
     CHECK(v.currentPage(l) == 1);
     v.y = 1e6;
     v.clamp(l);
-    CHECK(v.y + v.h == doctest::Approx(l.rowTop[1] + 200 + 10)); // the row's bottom
+    CHECK(v.y + v.h == doctest::Approx(l.rowTop[1] + 200)); // the row's bottom
     CHECK(v.pages(l, 1000) == std::pair{1, 1});
     REQUIRE(v.flip(1, l));
     CHECK(v.row == 2);
-    CHECK(v.y == doctest::Approx(l.rowTop[2] - 10));
+    CHECK(v.y == doctest::Approx(l.rowTop[2]));
     REQUIRE(v.flip(-1, l));
     CHECK(v.row == 1);
-    CHECK(v.y + v.h == doctest::Approx(l.rowTop[1] + 200 + 10)); // back at its bottom
+    CHECK(v.y + v.h == doctest::Approx(l.rowTop[1] + 200)); // back at its bottom
     v.goToPage(0, l);
     CHECK_FALSE(v.flip(-1, l));
     // a row smaller than the view is centred in it

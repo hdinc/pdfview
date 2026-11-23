@@ -224,6 +224,8 @@ private:
     void relayout(ViewMode m);
     void leaveOverview();
     void applyZoomMode();
+    // whether the vertical scrollbar has anything to do in a view this size
+    bool needsScrollbar(float width, float height) const;
     void handleMouse(ImVec2 origin, bool hovered, bool active);
     void drawPageMenu();
     enum class Glide { Step, Page }; // a wheel notch or line, or a screenful

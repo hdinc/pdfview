@@ -20,8 +20,9 @@ void Layout::build(std::vector<PageSize> sizes, ViewMode m)
     double colW = 0;
     for (const auto& p : pages)
         colW = std::max(colW, p.w);
-    width = cols * colW + (cols + 1) * gap;
-    double y = gap;
+    // gaps between pages and rows only: the document's edges are the pages'
+    width = cols * colW + (cols - 1) * gap;
+    double y = 0;
     for (size_t i = 0; i < n;) {
         bool alone = i == 0 && m.firstAlone && cols > 1;
         size_t end = alone ? 1 : std::min(n, i + static_cast<size_t>(cols));
@@ -31,7 +32,7 @@ void Layout::build(std::vector<PageSize> sizes, ViewMode m)
             rh = std::max(rh, pages[k].h);
         for (size_t k = i; k < end; k++) {
             const PageSize& p = pages[k];
-            double slot = gap + static_cast<double>(k - i) * (colW + gap);
+            double slot = static_cast<double>(k - i) * (colW + gap);
             if (alone)
                 x[k] = (width - p.w) / 2;
             else if (cols == 2)
@@ -47,7 +48,7 @@ void Layout::build(std::vector<PageSize> sizes, ViewMode m)
         y += rh + gap;
         i = end;
     }
-    height = y;
+    height = rowTop.empty() ? 0 : y - gap;
 }
 
 int Layout::rowAt(double y) const
@@ -92,7 +93,7 @@ std::pair<int, int> Layout::range(double y0, double y1) const
 double Layout::rowWidth(int r) const
 {
     int a = rowFirst[static_cast<size_t>(r)], b = rowLast(r);
-    return left(b) + pages[static_cast<size_t>(b)].w - left(a) + 2 * gap;
+    return left(b) + pages[static_cast<size_t>(b)].w - left(a);
 }
 
 std::pair<double, double> View::band(const Layout& l) const
@@ -100,7 +101,7 @@ std::pair<double, double> View::band(const Layout& l) const
     if (l.mode.continuous || l.rows() == 0) return {0, l.height};
     int r = std::clamp(row, 0, l.rows() - 1);
     double t = l.rowTop[static_cast<size_t>(r)];
-    return {t - l.gap, t + l.rowH[static_cast<size_t>(r)] + l.gap};
+    return {t, t + l.rowH[static_cast<size_t>(r)]};
 }
 
 void View::clamp(const Layout& l)
@@ -131,7 +132,7 @@ void View::zoomAt(double z, double sx, double sy, const Layout& l)
 double View::fitWidth(const Layout& l, int page) const
 {
     if (l.pages.empty() || w <= 0) return zoom;
-    double pw = l.mode.columns <= 1 ? l.pages[static_cast<size_t>(page)].w + 2 * l.gap : l.width;
+    double pw = l.mode.columns <= 1 ? l.pages[static_cast<size_t>(page)].w : l.width;
     return std::clamp(w / pw, kMinZoom, kMaxZoom);
 }
 
@@ -140,10 +141,10 @@ double View::fitPage(const Layout& l, int page) const
     if (l.pages.empty() || h <= 0) return zoom;
     if (l.mode.columns <= 1) {
         const PageSize& p = l.pages[static_cast<size_t>(page)];
-        return std::clamp(std::min(w / (p.w + 2 * l.gap), h / (p.h + 2 * l.gap)), kMinZoom, kMaxZoom);
+        return std::clamp(std::min(w / p.w, h / p.h), kMinZoom, kMaxZoom);
     }
     int r = l.rowOf[static_cast<size_t>(page)];
-    return std::clamp(std::min(w / l.width, h / (l.rowH[static_cast<size_t>(r)] + 2 * l.gap)), kMinZoom, kMaxZoom);
+    return std::clamp(std::min(w / l.width, h / l.rowH[static_cast<size_t>(r)]), kMinZoom, kMaxZoom);
 }
 
 int View::currentPage(const Layout& l) const
@@ -164,12 +165,12 @@ void View::goToPage(int page, const Layout& l, double yInPage)
     auto i = static_cast<size_t>(page);
     row = l.rowOf[i];
     if (yInPage < 0)
-        y = l.rowTop[static_cast<size_t>(row)] - l.gap / 2;
+        y = l.rowTop[static_cast<size_t>(row)];
     else
         y = l.top[i] + yInPage;
     // bring the page in sideways when it is off the view
     double vw = w / zoom, px0 = l.left(page), px1 = px0 + l.pages[i].w;
-    if (px0 < x || px1 > x + vw) x = vw >= px1 - px0 ? (px0 + px1 - vw) / 2 : px0 - l.gap / 2;
+    if (px0 < x || px1 > x + vw) x = vw >= px1 - px0 ? (px0 + px1 - vw) / 2 : px0;
     clamp(l);
 }
 

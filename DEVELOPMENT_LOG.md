@@ -919,3 +919,34 @@
 - **Outstanding issues:** A window doesn't pick up another window's changes while it runs
   (its UI keeps its own preferences until restarted); only its saves merge.
 - **Recommended features:** Hd's theme editor can adopt `Hd::replaceFile`.
+
+## 2026-11-24 00:25 +03:00 — Fitted pages reach the view's edges
+
+- **Changes made:** Fit Width and Fit Page left visible gaps. The fit zooms divided by the
+  page plus a 10-point margin on each side (a margin in document points, so it grew with the
+  zoom), page jumps placed the view half a gap above and left of the page, and the scrollbar
+  strip stayed reserved and filled even when nothing could scroll.
+- **How it works:**
+  - `Layout::build` puts no margin around the document: the first page starts at 0, `width`
+    and `height` end at the last page's edges, and `gap` is only between pages and rows.
+    `rowWidth` and the non-continuous `View::band` lose their gap terms, so a row's scroll
+    range is exactly the row.
+  - `View::fitWidth` uses the page's width (one column) or the layout's width; `fitPage`
+    the page's or row's size. `goToPage` puts the row's top and, when bringing a page in
+    sideways, its left edge exactly at the view's.
+  - `Viewer::needsScrollbar` decides the strip from the full width only, with the zoom the
+    current fit mode would give there, so the decision can't oscillate as the strip comes
+    and goes. Without it, the canvas takes the whole width and no scrollbar is drawn.
+  - Rejected: a margin of a few screen pixels (the review asked for touching edges).
+  - With facing pages of mixed widths, each column is as wide as the widest page, so a row
+    of narrow pages still leaves space beside them; same-size pages fill the width exactly.
+- **Testing:** Updated "Layout and View geometry" and "Layout: view modes" for the missing
+  margin. New "fitted pages reach the view's edges": Fit Width makes each of three mixed
+  pages exactly the view's width with its left edge at the view's; Fit Page fills the width
+  or height without exceeding either, top at the view's top; the scroll ends are the first
+  page's top and the last page's bottom; two columns and first-alone fill the width; a
+  non-continuous fitted page leaves nothing to scroll. All eight CTest targets passed.
+  Screenshots of pdfview-app (separate APPDATA, 1100 × 800): Fit Width flush at the left
+  and top with the page's right edge at the scrollbar; non-continuous Fit Page touching top
+  and bottom, centred, with no scrollbar strip; continuous facing with mixed sizes.
+- **Next steps:** The page gaps setting (plan step 2).

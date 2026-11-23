@@ -85,6 +85,9 @@ does no file I/O of its own and launches no processes.
 - Contents rows use zero vertical cell padding so the highlight reaches both row edges.
 - The Contents context menu expands and collapses branches and highlights its target row.
 - Annotations are out of scope; documents open read-only.
+- The layout has no margin around the document: `Layout::gap` is only between pages and rows, so fits, page
+  jumps and scroll ends touch the view's edges. The viewer reserves the scrollbar strip only when the content
+  can scroll at the full width (`Viewer::needsScrollbar`), a test that can't flip between frames.
 - Settings saves: hold `Hd::FileLock` on `settings.ini.lock`, read the file, keep local changes since the last
   load or save (`App::mSaved`), write with `Hd::replaceFile`. The open tabs are the saving window's, so a launch
   without files restores the last window saved. Bookmarks have ids (`bookmark_id=` after each `bookmark=` line,
@@ -96,7 +99,7 @@ does no file I/O of its own and launches no processes.
 
 ## Current work
 - [View fit, page gaps, drag zoom, settings window and toolbar](doc/plans/2026-11-24-view-fit-zoom-settings.md):
-  approved, not started. First step: make Fit Width and Fit Page fill the view.
+  step 1 (fits fill the view) done, uncommitted, for review. Next: the page gaps setting.
 - [Viewer interaction updates](doc/plans/2026-11-22-viewer-interaction-updates.md) is done (last commits: Hd
   3191ff6, pdfview bd53f4d). Not yet tested on Linux.
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-Approved 2026-11-24, with the answers to the open questions folded in. Not started.
+In progress since 2026-11-24. Step 1 done, awaiting review.
 
 ## Goal
 
@@ -106,7 +106,7 @@ offer it, and the toolbar comes last because it gets the button for the new Sett
 
 ## Steps
 
-- [ ] **Fit fills the view.** Change `View::fitWidth`, `View::fitPage` and the fitted placement in
+- [x] **Fit fills the view.** (Done: the layout lost its outer margin altogether, so gaps are only between pages and rows; the scrollbar strip is dropped when nothing scrolls at the full width.) Change `View::fitWidth`, `View::fitPage` and the fitted placement in
   `goToPage`/`clamp` to drop the outer margin, for one column, several columns and non-continuous
   rows. Check the scrollbar strip's part. Tests in `tests/test_pdfview.cpp` ("Layout and View
   geometry"): a fitted page's screen width equals the view width; Fit Page equals the view's width

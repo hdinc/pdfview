@@ -264,6 +264,22 @@ void Viewer::applyZoomMode()
     }
 }
 
+bool Viewer::needsScrollbar(float width, float height) const
+{
+    if (!mLaidOut) return true;
+    // Judged at the full width only, so the answer can't flip between frames
+    // as the strip comes and goes and a fitted zoom follows it.
+    View v = mView;
+    v.w = std::max(1.0f, width);
+    v.h = std::max(1.0f, height);
+    int p = currentPage();
+    double zoom = mZoomMode == ZoomMode::FitWidth ? v.fitWidth(mLayout, p)
+        : mZoomMode == ZoomMode::FitPage           ? v.fitPage(mLayout, p)
+                                                   : v.zoom;
+    auto [b0, b1] = v.band(mLayout);
+    return (b1 - b0) * zoom > v.h + 0.5;
+}
+
 void Viewer::fitWidth()
 {
     mZoomMode = ZoomMode::FitWidth;
@@ -1718,7 +1734,10 @@ void Viewer::draw(const char* id, ImVec2 size)
     ImVec2 origin = ImGui::GetCursorScreenPos();
     mOrigin = origin;
     ImVec2 avail = ImGui::GetContentRegionAvail();
-    ImVec2 canvas{std::max(1.0f, avail.x - scrollbarW()), std::max(1.0f, avail.y)};
+    // The scrollbar takes its strip only when something can scroll, so a
+    // fitted page reaches the right edge too.
+    bool scrollbar = needsScrollbar(avail.x, avail.y);
+    ImVec2 canvas{std::max(1.0f, avail.x - (scrollbar ? scrollbarW() : 0)), std::max(1.0f, avail.y)};
     if (mView.w != canvas.x || mView.h != canvas.y) {
         cancelScroll();
         // keep the page under the view's centre on resize
@@ -1743,7 +1762,7 @@ void Viewer::draw(const char* id, ImVec2 size)
     updateScrollAnimation();
     if (mAuto.on() && hovered)
         ImGui::SetMouseCursor(mLayout.width > mView.w / mView.zoom ? ImGuiMouseCursor_ResizeAll : ImGuiMouseCursor_ResizeNS);
-    drawScrollbar({origin.x + canvas.x, origin.y}, {scrollbarW(), canvas.y});
+    if (scrollbar) drawScrollbar({origin.x + canvas.x, origin.y}, {scrollbarW(), canvas.y});
 
     if (mSettling && Clock::now() - mZoomChanged >= kSettle) {
         mSettling = false;

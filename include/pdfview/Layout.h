@@ -25,7 +25,7 @@ struct ViewMode {
 // are centred in their column and their row.
 struct Layout {
     std::vector<PageSize> pages;
-    double gap = 10; // around and between pages
+    double gap = 10; // between pages and rows; none around the document
     ViewMode mode;
     std::vector<double> x; // of each page's left edge
     std::vector<double> top; // of each page
@@ -33,7 +33,7 @@ struct Layout {
     std::vector<int> rowFirst; // each row's first page
     std::vector<double> rowTop; // each row's top, its tallest page's
     std::vector<double> rowH;
-    double width = 0; // of the whole document, gaps included
+    double width = 0; // of the whole document, from the first page's edge to the last's
     double height = 0;
 
     void build(std::vector<PageSize> sizes, ViewMode m = {});
@@ -50,7 +50,7 @@ struct Layout {
     // first and last page in the rows touching [y0, y1]; first > last when
     // none
     std::pair<int, int> range(double y0, double y1) const;
-    // the width of row r with its gaps
+    // the width of row r, from its first page's left edge to its last's right
     double rowWidth(int r) const;
 };
 
