@@ -17,6 +17,7 @@ static constexpr auto kSettle = std::chrono::milliseconds(150);
 // the scrollbar follows the style, so it scales with the UI
 static float scrollbarW() { return ImGui::GetStyle().ScrollbarSize; }
 static constexpr double kWheelStep = 80; // pixels per wheel notch at scale 1
+static constexpr double kPageGap = 10; // points between pages, when gaps are on
 static constexpr double kStepStiffness = ScrollMotion::kStepStiffness;
 static constexpr double kPageStiffness = ScrollMotion::kPageStiffness;
 static constexpr double kMaxScrollSpeed = ScrollMotion::kMaxSpeed; // screen pixels per second at scale 1
@@ -326,6 +327,13 @@ void Viewer::setOverviewColumns(int n)
     }
 }
 
+void Viewer::setPageGaps(bool on)
+{
+    if (on == mPageGaps) return;
+    mPageGaps = on;
+    if (mLaidOut) relayout(mMode);
+}
+
 void Viewer::leaveOverview()
 {
     ViewMode mode = mPrevMode;
@@ -338,6 +346,7 @@ void Viewer::relayout(ViewMode m)
     cancelScroll();
     Dest at = position();
     mMode = m;
+    mLayout.gap = mPageGaps ? kPageGap : 0;
     mLayout.build(mWorker->pageSizes(), m);
     mView.goToPage(at.page, mLayout, at.y);
     applyZoomMode();
@@ -346,6 +355,7 @@ void Viewer::relayout(ViewMode m)
 
 void Viewer::startLayout()
 {
+    mLayout.gap = mPageGaps ? kPageGap : 0;
     mLayout.build(mWorker->pageSizes(), mMode);
     // fit the first page's width, but not huge on a wide window
     double fw = mView.fitWidth(mLayout, 0);
@@ -1597,7 +1607,8 @@ void Viewer::drawPages(ImDrawList* dl, ImVec2 origin, ImVec2 size)
         const PageSize& p = mLayout.pages[static_cast<size_t>(i)];
         double px = mLayout.left(i), py = mLayout.top[static_cast<size_t>(i)];
         ImVec2 p0 = toScreenDoc(px, py), p1 = toScreenDoc(px + p.w, py + p.h);
-        dl->AddRectFilled({p0.x + 2, p0.y + 3}, {p1.x + 2, p1.y + 3}, IM_COL32(0, 0, 0, 90)); // shadow
+        // without gaps a shadow would fall on the next page
+        if (mPageGaps) dl->AddRectFilled({p0.x + 2, p0.y + 3}, {p1.x + 2, p1.y + 3}, IM_COL32(0, 0, 0, 90)); // shadow
         dl->AddRectFilled(p0, p1, IM_COL32_WHITE);
         // the preview, then tiles of other levels, then the current level
         // on top: whatever is sharpest so far ends up visible
@@ -1622,6 +1633,8 @@ void Viewer::drawPages(ImDrawList* dl, ImVec2 origin, ImVec2 size)
                 float v1 = static_cast<float>((std::min(dy1, py + p.h) - dy0) * s / t.h);
                 dl->AddImage(static_cast<ImTextureID>(t.id), q0, q1, {0, 0}, {u1, v1});
             }
+        // pages that touch stay apart by a thin line, as thumbnails do
+        if (!mPageGaps) dl->AddRect(p0, p1, ImGui::GetColorU32(ImGuiCol_Border), 0.0f, ImDrawFlags_None, 1.0f);
     }
     dl->PopClipRect();
 }

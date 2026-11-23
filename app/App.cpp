@@ -169,6 +169,7 @@ void App::openOne(const std::string& file, bool select)
     t->viewer = std::make_unique<Viewer>(o);
     t->viewer->setWake([] { glfwPostEmptyEvent(); });
     t->viewer->setOverviewColumns(mSettings.overviewColumns);
+    t->viewer->setPageGaps(mSettings.pageGaps);
     start(*t);
     mSettings.addRecent(path);
     if (select || mTabs.empty()) mSelect = t->id;
@@ -280,6 +281,11 @@ void App::addActions()
     mActions.add("tab.next", "Next Tab", "Tabs", "Ctrl+Tab", "", cycle(1));
     mActions.add("tab.prev", "Previous Tab", "Tabs", "Ctrl+Shift+Tab", "", cycle(-1));
     mActions.add("view.sidebar", "Show Sidebar", "View", "F7", "", [this] { mSettings.sidebar = !mSettings.sidebar; }).checked = [this] { return mSettings.sidebar; };
+    mActions.add("view.page_gaps", "Gaps Between Pages", "View Mode", "", "", [this] {
+        mSettings.pageGaps = !mSettings.pageGaps;
+        for (auto& t : mTabs) t->viewer->setPageGaps(mSettings.pageGaps);
+        saveSettings();
+    }).checked = [this] { return mSettings.pageGaps; };
     mActions.add("view.thumbnails", "Thumbnails", "View", "", "", [this] {
         mSettings.sidebar = true;
         mSettings.sidebarTab = 0;
@@ -520,6 +526,7 @@ void App::drawViewModeMenu()
     menuItem("view.overview");
     ImGui::Separator();
     menuItem("view.continuous");
+    menuItem("view.page_gaps");
 }
 
 namespace Icon {

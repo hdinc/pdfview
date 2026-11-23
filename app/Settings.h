@@ -49,6 +49,7 @@ struct Settings {
     bool thumbLabels = true;
     bool thumbGaps = true;
     bool animations = true;
+    bool pageGaps = true;
     int overviewColumns = 4;
     pdfview::ViewMode defaultMode;
     std::string shortcuts; // Actions::save()

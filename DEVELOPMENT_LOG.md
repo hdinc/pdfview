@@ -950,3 +950,25 @@
   and top with the page's right edge at the scrollbar; non-continuous Fit Page touching top
   and bottom, centred, with no scrollbar strip; continuous facing with mixed sizes.
 - **Next steps:** The page gaps setting (plan step 2).
+
+## 2026-11-24 00:29 +03:00 — Turn the gaps between pages on and off
+
+- **Features implemented:** View Mode > Gaps Between Pages (action `view.page_gaps`, no
+  default key) turns the gaps between pages and rows on or off in every tab and view mode,
+  Overview included. It is a global preference, saved as `page_gaps=` in `[settings]` and
+  merged like the others.
+- **How it works:** `Viewer::setPageGaps(bool)` sets `Layout::gap` to 10 points or 0
+  (`kPageGap`) and relays out through `Viewer::relayout`, which keeps the reading position;
+  `startLayout` applies it to a new document. With gaps off, pages draw without their drop
+  shadow (it would fall on the next page) and get a 1-pixel border in `ImGuiCol_Border` over
+  their contents, as thumbnails have. The app applies the preference to each new tab and to
+  all tabs when toggled, then saves.
+  - Rejected: an adjustable size and per-document gaps (decided in review).
+- **Testing:** New "Layout without gaps: pages touch" (pages and rows meet; a join belongs to
+  the page below; facing and overview columns meet). The settings round trip and the
+  two-window merge now include `page_gaps`. All eight CTest targets passed. Screenshots of
+  pdfview-app with gaps off and on in continuous single view, and off in Overview; the
+  preference was still set after each run.
+- **Outstanding issues:** In facing and Overview, columns are as wide as the widest page, so
+  documents with mixed page widths still show space beside narrower pages with gaps off.
+- **Next steps:** Ctrl + middle-button drag zoom (plan step 3).

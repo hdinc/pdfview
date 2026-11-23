@@ -68,6 +68,7 @@ TEST_CASE("settings: a file round-trips, bookmark ids included")
     std::string dir = test::scratch("settings-roundtrip");
     Settings s;
     s.theme = "light";
+    s.pageGaps = false;
     s.recent = {"a.pdf"};
     FileState& f = s.file("a.pdf");
     f.bookmarks.push_back({3, 120, "Three"});
@@ -76,6 +77,7 @@ TEST_CASE("settings: a file round-trips, bookmark ids included")
     Settings t;
     t.load(dir + "/s.ini");
     CHECK(t.theme == "light");
+    CHECK(!t.pageGaps);
     REQUIRE(t.files.count("a.pdf"));
     REQUIRE(t.files["a.pdf"].bookmarks.size() == 1);
     CHECK(t.files["a.pdf"].bookmarks[0] == f.bookmarks[0]);
@@ -113,6 +115,7 @@ TEST_CASE("settings: two windows keep each other's changes")
     Window a(path), b(path);
     // a: preferences, a bookmark removed and another edited, a shortcut
     a.local.sidebarWidth = 420;
+    a.local.pageGaps = false;
     auto& abm = a.local.files["a.pdf"].bookmarks;
     abm.erase(abm.begin() + 1);
     abm[1].title = "Edited by a";
@@ -131,6 +134,7 @@ TEST_CASE("settings: two windows keep each other's changes")
     Settings s;
     s.load(path);
     CHECK(s.sidebarWidth == 420);
+    CHECK(!s.pageGaps);
     CHECK(s.theme == "light");
     std::vector<std::string> titles;
     for (const auto& x : s.files["a.pdf"].bookmarks) titles.push_back(x.title);

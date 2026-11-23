@@ -105,6 +105,10 @@ public:
     // overview's column count
     int overviewColumns() const { return mOverviewColumns; }
     void setOverviewColumns(int n);
+    // gaps between pages and rows, in every view mode; off, pages touch and
+    // get a thin border instead. Keeps the reading position.
+    bool pageGaps() const { return mPageGaps; }
+    void setPageGaps(bool on);
 
     // --- navigation. Jumps (goTo, goToPage, first, last, links, outline)
     // are recorded for back(); scrolling isn't.
@@ -287,6 +291,7 @@ private:
     View mView;
     ViewMode mMode;
     int mOverviewColumns = 4;
+    bool mPageGaps = true;
     ZoomMode mZoomMode = ZoomMode::FitWidth;
     TileCache mTiles;
     std::deque<RenderWorker::Result> mPending; // taken, not uploaded yet

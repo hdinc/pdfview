@@ -316,6 +316,32 @@ TEST_CASE("fitted pages reach the view's edges")
     CHECK(v.y == doctest::Approx(l.top[2]));
 }
 
+TEST_CASE("Layout without gaps: pages touch")
+{
+    std::vector<PageSize> pages{{100, 200}, {100, 100}, {100, 200}, {100, 200}};
+    Layout l;
+    l.gap = 0;
+    l.build(pages, {1, false, true});
+    CHECK(l.top[1] == doctest::Approx(200));
+    CHECK(l.top[2] == doctest::Approx(300));
+    CHECK(l.height == doctest::Approx(700));
+    // a join belongs to the page below it
+    CHECK(l.pageAt(50, 199.9) == 0);
+    CHECK(l.pageAt(50, 200) == 1);
+    CHECK(l.pageAt(50, 300) == 2);
+    CHECK(l.range(200, 299).first == 1);
+    CHECK(l.range(200, 299).second == 1);
+    // facing and overview: columns meet
+    l.build(pages, {2, false, true});
+    CHECK(l.width == doctest::Approx(200));
+    CHECK(l.left(1) == doctest::Approx(100));
+    CHECK(l.pageAt(100.1, 50) == 1);
+    CHECK(l.pageAt(99.9, 50) == 0);
+    l.build(pages, {3, false, true});
+    CHECK(l.width == doctest::Approx(300));
+    CHECK(l.rowTop[1] == doctest::Approx(200));
+}
+
 TEST_CASE("levels and visible tiles")
 {
     CHECK(levelFor(1.0) == 0);

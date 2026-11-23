@@ -150,6 +150,8 @@ void Settings::load(const std::string& path)
                 thumbGaps = v == "1";
             else if (k == "animations")
                 animations = v == "1";
+            else if (k == "page_gaps")
+                pageGaps = v == "1";
             else if (k == "overview_columns")
                 overviewColumns = static_cast<int>(toNum(v, overviewColumns));
             else if (k == "columns")
@@ -247,6 +249,7 @@ std::string Settings::text() const
     o << "thumb_labels=" << (thumbLabels ? 1 : 0) << "\n";
     o << "thumb_gaps=" << (thumbGaps ? 1 : 0) << "\n";
     o << "animations=" << (animations ? 1 : 0) << "\n";
+    o << "page_gaps=" << (pageGaps ? 1 : 0) << "\n";
     o << "overview_columns=" << overviewColumns << "\n";
     o << "columns=" << defaultMode.columns << "\n";
     o << "first_alone=" << (defaultMode.firstAlone ? 1 : 0) << "\n";
@@ -304,6 +307,7 @@ Settings Settings::merge(const Settings& disk, const Settings& local, const Sett
     pick(r.thumbLabels, local.thumbLabels, base.thumbLabels);
     pick(r.thumbGaps, local.thumbGaps, base.thumbGaps);
     pick(r.animations, local.animations, base.animations);
+    pick(r.pageGaps, local.pageGaps, base.pageGaps);
     pick(r.overviewColumns, local.overviewColumns, base.overviewColumns);
     pick(r.defaultMode, local.defaultMode, base.defaultMode);
     pick(r.theme, local.theme, base.theme);

@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress since 2026-11-24. Step 1 done, awaiting review.
+In progress since 2026-11-24. Steps 1 and 2 done; step 2 awaits review.
 
 ## Goal
 
@@ -112,7 +112,7 @@ offer it, and the toolbar comes last because it gets the button for the new Sett
   geometry"): a fitted page's screen width equals the view width; Fit Page equals the view's width
   or height, with the page's top at the view's top; this holds for mixed page sizes, two columns
   and first-alone. Check in the app at 100 % and 150 % interface size.
-- [ ] **Page gaps setting.** Make the gap a viewer setting (`Viewer::setPageGap`, points) that relays
+- [x] **Page gaps setting.** (Done: `Viewer::setPageGaps`, `page_gaps=` and the "Gaps Between Pages" toggle in the View Mode menu; the Settings window gets it in step 5.) Make the gap a viewer setting (`Viewer::setPageGap`, points) that relays
   out and keeps the position. Persist it (`page_gap=` in `[settings]`, merged like other
   preferences) and apply it to all tabs. Draw a thin page border when the gap is 0. Tests: Layout
   with gap 0 (pages touch, `rowAt`/`pageAt` still right at the joins), position kept across a gap
