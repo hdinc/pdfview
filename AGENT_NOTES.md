@@ -38,6 +38,8 @@ does no file I/O of its own and launches no processes.
 - `build/bin/pdfview-app file.pdf`. Settings go to `%APPDATA%\pdfview\settings.ini`; set APPDATA to keep
   test runs out of the real one.
 - Close the running app before building: Windows locks the .exe and the link fails.
+- After `git pull`, run `git submodule update`: a pull doesn't move `deps/Hd`, and the build then fails.
+- pdfview-app is a GUI-subsystem program (`WIN32_EXECUTABLE`): no console, so stdout/stderr go nowhere.
 - Bash heredocs mangle backslashes, so `\n` inside C++ strings breaks. Edit those with the Write/Edit
   tools. Keep files LF; CRLF breaks multi-line replacements.
 

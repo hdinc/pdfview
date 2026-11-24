@@ -1182,3 +1182,19 @@
     from the File menu.
 - **Recommended features:** Multi-select in Hd's ImGui dialog, to match the native ones.
   Saving the session every minute or so when it changed.
+
+## 2026-11-24 12:00 +03:00 — No console window when pdfview-app starts on Windows
+
+**Changes made:** `pdfview-app` was linked as a console program (PE subsystem CUI), so Windows opened a
+console window next to the viewer at every launch. `CMakeLists.txt` now sets `WIN32_EXECUTABLE ON` on the
+target (MinGW links with `-mwindows`; the subsystem is now "Windows GUI"). Under MSVC it also passes
+`/ENTRY:mainCRTStartup`, so `main()` stays the entry point there; MinGW's runtime calls `main()` already.
+
+**How it works:** The app writes nothing to stdout or stderr, so nothing is lost. Rejected: hiding the console
+at run time with `FreeConsole()`, which still flashes a window.
+
+**Testing:** MSYS2 ucrt64 build; `objdump -p` shows subsystem 2 (Windows GUI); all 9 ctest tests pass; the
+app launches and shows its window. Opening it from Explorer was not checked by hand.
+
+**Outstanding issues:** Any future diagnostic output on Windows needs a log file or `AttachConsole`, since
+stdout/stderr are not connected when launched from Explorer.
