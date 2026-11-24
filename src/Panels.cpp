@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <functional>
 #include <optional>
 
 namespace pdfview {
@@ -20,14 +21,29 @@ bool containsNoCase(const std::string& hay, const char* needle)
     return it != hay.end();
 }
 
-// the last item, in reading order, that starts at or before (page, y)
-void findCurrent(const std::vector<OutlineItem>& items, Dest at, const OutlineItem*& best)
-{
-    for (const auto& it : items) {
-        if (it.dest.valid() && (it.dest.page < at.page || (it.dest.page == at.page && it.dest.y <= std::max(at.y, 0.0) + 40))) best = &it;
-        findCurrent(it.children, at, best);
-    }
 }
+
+const OutlineItem* currentOutlineItem(const std::vector<OutlineItem>& items, Dest at)
+{
+    // an entry counts as begun when it starts up to 40 points below the top
+    auto startsBefore = [&](const Dest& d) { return d.page < at.page || (d.page == at.page && d.y <= std::max(at.y, 0.0) + 40); };
+    // an unknown y is the top of the page
+    auto later = [](const Dest& a, const Dest& b) { return a.page != b.page ? a.page > b.page : std::max(a.y, 0.0) > std::max(b.y, 0.0); };
+    const OutlineItem* best = nullptr;
+    // the entry with the latest start; on a tie the last in reading order
+    // (a section starting where its chapter does). List order alone isn't
+    // enough: outlines may hold entries out of page order.
+    std::function<void(const std::vector<OutlineItem>&)> visit = [&](const std::vector<OutlineItem>& list) {
+        for (const auto& it : list) {
+            if (it.dest.valid() && startsBefore(it.dest) && (!best || !later(best->dest, it.dest))) best = &it;
+            visit(it.children);
+        }
+    };
+    visit(items);
+    return best;
+}
+
+namespace {
 
 // the items from the top down to target
 bool pathTo(const std::vector<OutlineItem>& items, const OutlineItem* target, std::vector<const OutlineItem*>& path)
@@ -74,7 +90,7 @@ void OutlinePanel::draw(Viewer& v, ImFont* boldFont)
         current = v.mOutlinePin.item;
     } else {
         v.mOutlinePin = {};
-        findCurrent(items, at.valid() ? at : Dest{v.currentPage(), 0}, current);
+        current = currentOutlineItem(items, at.valid() ? at : Dest{v.currentPage(), 0});
     }
     bool scrollToCurrent = current != mLastCurrent;
     mLastCurrent = current;

@@ -1210,3 +1210,19 @@ launches and shows its window. The new file browser features (pdfview's Open fal
 zenity/kdialog) and CJK text rendering were not checked by hand.
 
 **Next steps:** pdfview's Open fallback could use the browser's multi-file selection, which it doesn't use yet.
+
+## 2026-11-24 21:58 +03:00 — Contents: the current section by destination, not list order
+
+**Changes made:** the Contents panel highlighted the wrong section when the outline holds entries out of page
+order. It took the last entry in list order that starts at or before the view, so an entry late in the
+list pointing to an early page won everywhere (Crafting Interpreters ends its outline with "Blank Page" →
+page 1: that entry was highlighted on every page, and the way to the real section never opened).
+
+**How it works:** `currentOutlineItem(items, at)` (now public in `Panels.h`, replacing the private
+`findCurrent`) takes the entry with the latest destination (page, then y; an unknown y is the page's top) that
+starts at or before the position, with the same 40-point allowance below the view's top. On a tie the last
+in reading order wins, so a section starting where its chapter does is still the one shown.
+
+**Testing:** new `tests/test_outline.cpp` (nesting, ties, the 40-point allowance, unknown y, an out-of-order
+entry); all 11 ctest tests pass on Linux. Checked in pdforg's GUI with Crafting Interpreters: after a jump to
+"3. The Lox Language" and scrolling, that entry stays highlighted. Not tested on Windows.

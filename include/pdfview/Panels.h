@@ -9,6 +9,10 @@
 
 namespace pdfview {
 
+// the outline entry holding the position: the one with the latest start at
+// or before it (on a tie, the last in reading order); null when none
+const OutlineItem* currentOutlineItem(const std::vector<OutlineItem>& items, Dest at);
+
 // the document's outline: a tree with page labels, filtered by a search
 // box; the section holding the current page is highlighted; clicking an
 // entry goes there
