@@ -41,6 +41,14 @@ does no file I/O of its own and launches no processes.
 - Bash heredocs mangle backslashes, so `\n` inside C++ strings breaks. Edit those with the Write/Edit
   tools. Keep files LF; CRLF breaks multi-line replacements.
 
+## Commands (Linux: Arch under WSL)
+- Same cmake commands; `build/` here is a Linux build. Settings go to `$XDG_CONFIG_HOME/pdfview/`, and they
+  are written on preference changes, on quit and on SIGTERM/SIGHUP/SIGINT.
+- `hd_font_test` takes about 140 s: it is also given three system fonts that Windows lacks and skips.
+- A TigerVNC XFCE session runs on `DISPLAY=:1`; use it, or `Xvfb :77`, to drive the app with `xdotool`; take
+  screenshots with `import -window <id>`. Click with `mousedown`/`mouseup` after moving: a move and a click in the same xdotool
+  call miss ImGui tabs.
+
 ## Decisions
 - Backend is poppler-glib. poppler-cpp has no TOC targets or links; MuPDF is AGPL and harder to package.
   Its pkg-config target is `PkgConfig::PDFVIEW_POPPLER`, so it doesn't clash with a host's.
@@ -56,7 +64,11 @@ does no file I/O of its own and launches no processes.
   - The toolbar uses `Hd::iconButton` with Font Awesome glyphs. pdfview's own glyphs are in
     `App.cpp`'s `Icon` namespace. It has three groups like Okular's: sidebar, zoom, view mode on the left;
     page navigation centred; tools, Find and Settings on the right. Group widths come from the last frame.
-- Native file dialogs (Win32 / zenity / kdialog) instead of nativefiledialog-extended: no GTK build dep.
+- Native file dialogs (Win32 / zenity / kdialog) instead of nativefiledialog-extended: no GTK build dep. Without
+  zenity or kdialog (`Hd::Platform::hasFileDialog`), Open uses Hd's ImGui dialog (one file, starting in the
+  active document's folder).
+- SIGTERM, SIGHUP and SIGINT end the main loop (`main.cpp`, `gStop`) so `~App` saves the session; a second
+  signal kills as usual. The X server dying still loses the session (Xlib exits).
 - The app opens only http/https/mailto links, after asking; other links can only be copied.
 - A file opened for the first time gets the last layout chosen in any tab (Overview excepted, `App::followLayout`)
   and the viewer's default zoom; known files get their saved view.
@@ -110,19 +122,16 @@ does no file I/O of its own and launches no processes.
 
 ## Docs
 - [doc/plans/](doc/plans/): implementation plans, dated.
-- [doc/todo.md](doc/todo.md): known issues and ideas not planned yet (toolbar overflow menu).
+- [doc/todo.md](doc/todo.md): known issues and ideas not planned yet (toolbar overflow menu, Linux findings).
 
 ## Current work
-- [View fit, page gaps, drag zoom, settings window and toolbar](doc/plans/2026-11-24-view-fit-zoom-settings.md):
-  done; the toolbar (step 6) is uncommitted, for review. Not yet tested on Linux.
-- [Viewer interaction updates](doc/plans/2026-11-22-viewer-interaction-updates.md) is done (last commits: Hd
-  3191ff6, pdfview bd53f4d). Not yet tested on Linux.
-
-[doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md).
-- All phases are written and tested on Windows, including after merging upstream Hd's themes and fonts.
-- Committed and pushed to pdfview `main` (b5dbca4) and Hd `master` (41b19a8).
-- Next: the unticked steps. Test on Linux; try Ctrl+wheel, auto-reload, a locked PDF and an external
-  link by hand; build pdforg against it.
+- Tested on Linux 2026-11-24 (at 347b053): GCC and Clang build without warnings, all tests pass (also under
+  ASan/UBSan), and the app works under Xvfb (rendering, keys, find, Settings, wheel and Ctrl+wheel, copy,
+  auto-reload, session restore, UTF-8 paths). The Open fallback and saving on signals were fixed after it;
+  the remaining issues are in [doc/todo.md](doc/todo.md).
+- [doc/plans/2026-11-21-viewer-features.md](doc/plans/2026-11-21-viewer-features.md) is still in progress.
+  Next: zenity/kdialog, xdg-open and dark mode on a real Linux desktop; a locked PDF; an external link;
+  build pdforg against the library.
 
 ## Ruled out
 - poppler's core private headers (unstable API).

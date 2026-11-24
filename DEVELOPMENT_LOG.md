@@ -1136,3 +1136,49 @@
   (Show Sidebar, file, tab, bookmark and settings actions) were checked by reading
   `App::addActions`. All nine CTest targets passed. The new keys were not pressed in the
   running app.
+
+## 2026-11-24 09:55 +03:00 — Linux test; Open without zenity or kdialog; save on SIGTERM
+
+- **Changes made:**
+  - Tested on Linux (Arch under WSL) for the first time. A clean GCC build with `-Wall -Wextra
+    -pedantic` and a Clang build gave no warnings. All nine CTest targets passed, and
+    `pdfview_tests` and `pdfview_settings_tests` were clean under ASan/UBSan. Under Xvfb and on
+    the VNC display these worked: rendering, thumbnails, toolbar, keys (L, Shift+G, G G, /),
+    find, the Settings window, wheel and Ctrl+wheel zoom, copy to the X11 clipboard,
+    auto-reload (atomic rename, in-place rewrite, background tab), session restore, and paths
+    with spaces and non-ASCII letters.
+  - File > Open... did nothing, silently, on Linux without zenity or kdialog. It now opens Hd's
+    ImGui file dialog.
+  - The session (open tabs, reading positions, window) was saved only in `App::~App` and on
+    preference edits, so SIGTERM, SIGHUP or SIGINT lost it. These signals now end the main
+    loop normally.
+  - Through Hd: a cancelled zenity no longer falls through to kdialog, and a typed folder
+    path with a trailing `/` no longer breaks the dialog's path bar.
+- **How it works:**
+  - `App::addActions` ("file.open"): when `Hd::Platform::hasFileDialog()` is false, call
+    `Hd::openDialog(kOpenDialog, ...)` with the active document's folder (home with no tab).
+    `App::drawDialogs` calls `Hd::dialogResult` each frame and opens the chosen file. The ImGui
+    dialog picks one file, not several.
+  - `main.cpp`: `catchStopSignals` installs a `sigaction` handler (with `SA_RESETHAND`) that
+    sets `gStop`, and the loop condition checks it. The loop already wakes at least once a
+    second, so the app leaves within a second and `~App` saves. A second signal kills as
+    usual, in case saving hangs. Not on Windows. Rejected: posting a GLFW event from the
+    handler (not async-signal-safe) and periodic saves (writes while idle; may come later).
+- **Testing:** On the VNC display (`:1`), with a scratch `XDG_CONFIG_HOME`:
+  - SIGTERM after moving to page 5 saved `page=4` and exited in about 0.6 s; SIGHUP and SIGINT
+    saved too.
+  - File > Open... showed the ImGui dialog in the document's folder (home with no tabs).
+    Typing a full path + Enter opened it in a new tab, and the typed letters didn't fire
+    viewer shortcuts. Escape closed the dialog, a typed folder navigated, and double-clicking
+    a file opened it.
+  - `hd_platform_test` covers the dialog program choice with fake scripts. Not built on
+    Windows.
+- **Outstanding issues:**
+  - The X server dying (e.g. logging out of a desktop without session management) still
+    loses the session: Xlib's I/O error handler exits without running destructors.
+  - The other findings are in doc/todo.md (xdg-open blocking, ligatures in copied text,
+    ImGui tab clicks in the same frame as a move).
+  - Open has no default shortcut (by the agreed table), so the fallback dialog is reached
+    from the File menu.
+- **Recommended features:** Multi-select in Hd's ImGui dialog, to match the native ones.
+  Saving the session every minute or so when it changed.

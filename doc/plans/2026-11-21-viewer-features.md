@@ -59,6 +59,9 @@ standalone program goes in pdfview-app. Done when each feature works in the app 
   - UI scale; splitter size; shortcut window size; new-file zoom;
   - contents collapsed like Okular; thumbnails re-centre after a reflow; look menu
 - [ ] Test on Linux: zenity/kdialog dialog, xdg-open, fc-match fonts, GNOME/KDE dark mode
+  - 2026-11-24, Arch under WSL with Xvfb: build, tests, fc-match fonts, Ctrl+wheel zoom, auto-reload
+    (rename and in-place rewrite) work. Not tried: zenity/kdialog (neither installed: Open does
+    nothing; fixed the same day with a fallback to Hd's ImGui dialog), xdg-open, dark mode (no desktop).
 - [ ] Try by hand (the test tool can't do these): Ctrl+wheel zoom and thumbnail size; auto-reload while
       LaTeX rewrites a PDF (Windows file locking); a password-protected PDF; an external link
 - [ ] Build pdforg against the new pdfview and Hd (Hd's `Gui` constructor now loads the system font and

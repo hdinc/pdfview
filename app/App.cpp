@@ -9,6 +9,7 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 
+#include <Hd/FileDialog.h>
 #include <Hd/Gui.h>
 #include <Hd/Icons.h>
 #include <Hd/Platform.h>
@@ -20,6 +21,9 @@ namespace fs = std::filesystem;
 using pdfview::Viewer;
 
 namespace {
+
+// the ImGui Open dialog's id, used when there is no native one
+constexpr const char* kOpenDialog = "open_files";
 
 fs::path u8(const std::string& s) { return fs::path(std::u8string(s.begin(), s.end())); }
 
@@ -256,7 +260,17 @@ void App::addActions()
 {
     Viewer::registerActions(mActions, [this] { return activeViewer(); });
     auto has = [this] { return active() != nullptr; };
-    mActions.add("file.open", "Open...", "File", "", "", [this] { open(Hd::Platform::openFilesDialog(mWindow.Id(), "Open", {{"PDF documents", "*.pdf;*.PDF"}})); });
+    mActions.add("file.open", "Open...", "File", "", "", [this] {
+        if (Hd::Platform::hasFileDialog()) {
+            open(Hd::Platform::openFilesDialog(mWindow.Id(), "Open", {{"PDF documents", "*.pdf;*.PDF"}}));
+            return;
+        }
+        // no native dialog (Linux without zenity or kdialog): ImGui's, in
+        // the active document's folder (home without one)
+        fs::path dir;
+        if (Tab* t = active()) dir = u8(t->path).parent_path();
+        Hd::openDialog(kOpenDialog, "Open", "PDF documents{.pdf},.*", dir);
+    });
     mActions.add("file.reload", "Reload", "File", "F5", "", [this] {
         if (Tab* t = active()) reload(*t);
     }).enabled = has;
@@ -988,6 +1002,11 @@ void App::drawDialogs()
         }
     }
     drawSettingsWindow();
+    fs::path chosen;
+    if (Hd::dialogResult(kOpenDialog, chosen)) {
+        auto u = chosen.u8string();
+        open({std::string(u.begin(), u.end())});
+    }
     if (mShortcutsOpen) {
         ImGui::SetNextWindowSize({720 * mGui.scale(), 560 * mGui.scale()}, ImGuiCond_FirstUseEver);
         if (ImGui::Begin("Configure Keyboard Shortcuts", &mShortcutsOpen, ImGuiWindowFlags_NoCollapse)) {
