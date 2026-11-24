@@ -1198,3 +1198,15 @@ app launches and shows its window. Opening it from Explorer was not checked by h
 
 **Outstanding issues:** Any future diagnostic output on Windows needs a log file or `AttachConsole`, since
 stdout/stderr are not connected when launched from Explorer.
+
+## 2026-11-24 12:20 +03:00 — Bump deps/Hd to a7ea8f8
+
+**Changes made:** `deps/Hd` moves from 42cbfd2 to a7ea8f8 (Hd's master), picking up two commits: the ImGui file
+browser gains places, a folder mode, multi-file selection and listing on a worker thread (2eb8833); fonts get
+CJK fallbacks and are read in one go (a7ea8f8). No pdfview code changes were needed.
+
+**Testing:** MSYS2 ucrt64 build with `-DHD_BUILD_TESTS=ON`, no warnings; all 11 ctest tests pass; the app
+launches and shows its window. The new file browser features (pdfview's Open fallback on Linux without
+zenity/kdialog) and CJK text rendering were not checked by hand.
+
+**Next steps:** pdfview's Open fallback could use the browser's multi-file selection, which it doesn't use yet.
