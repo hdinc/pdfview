@@ -19,6 +19,12 @@ cmake -B build -G Ninja && cmake --build build && ctest --test-dir build
 build/bin/pdfview-app file.pdf
 ```
 
+## Releases
+
+Pushing a `v*` tag builds `pdfview-<tag>-linux-x64.zip` (Ubuntu 24.04 or a newer glibc) and
+`pdfview-<tag>-windows-x64.zip` with their libraries, and publishes them as a GitHub release
+(`.github/workflows/release.yml`, `packaging/`).
+
 ## Future improvements
 
 - Add regular expression (regex) search for PDF text.
@@ -30,4 +36,4 @@ host's `imgui` and `glad` targets when they exist, otherwise those of its `deps/
 `include/pdfview/Viewer.h`: `open(path)`, then `draw(id, size)` each frame inside an ImGui window; set a
 wake callback (e.g. `glfwPostEmptyEvent`) so a host that waits for events redraws when tiles arrive.
 
-Licence: GPL (poppler is GPL).
+Licence: GNU General Public License, version 2 (GPL-2.0-only), see [LICENSE](LICENSE); poppler is GPL too.

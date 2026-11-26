@@ -1241,3 +1241,39 @@ entry); all 11 ctest tests pass on Linux. Checked in pdforg's GUI with Crafting 
   all ctest suites pass on Linux. Not checked by hand in the GUI.
 - **Outstanding issues:** at the very end of the document, Next Page still does nothing when the remaining
   rows already fit on screen (there is nowhere to scroll); that is expected.
+
+## 2026-11-26 13:00 +03:00 — Release workflow: Linux and Windows zips
+
+- **Features implemented:** `.github/workflows/release.yml`. On a `v*` tag it builds pdfview-app in Release on
+  ubuntu-24.04 (g++-14) and windows-latest (MSYS2 UCRT64), runs ctest on both, packs each into a zip with its
+  libraries and publishes a GitHub release with generated notes. `workflow_dispatch` runs the same jobs and keeps
+  the zips as artifacts, with no release.
+- **How it works:**
+  - `packaging/bundle-linux.sh`: copies the libraries `ldd` finds into `lib/`, sets the program's runpath to
+    `$ORIGIN/lib` and each library's to `$ORIGIN`, and strips everything. It leaves out what must match the
+    system or that every desktop has: glibc, libstdc++/libgcc_s (Mesa drivers may need a newer one), GL, X11/xcb,
+    fontconfig and freetype (they read the system's font config), expat and zlib. It fails on unresolved libraries.
+  - `packaging/bundle-windows.sh`: copies the exe and every DLL `ldd` lists under the MSYS2 prefix, plus
+    `etc/fonts` and `share/poppler` (poppler-data). fontconfig and poppler find those next to their DLL (a
+    trailing `bin` is stripped, so a flat layout works).
+  - The Windows job turns off `core.autocrlf` before checkout, so files keep LF as in the repo.
+  - Choices: Windows is built natively, not cross-compiled. Cross-compiling would need Hd changes (its
+    resource step runs the target's `hdres-bin` and uses the host `ld -b binary`) and an MSYS2 sysroot for
+    poppler, cairo, glib and glfw. A zip was chosen over an AppImage.
+- **Testing:** Linux bundle script run on Arch with a Release build (patchelf from PyPI in a venv): 56
+  libraries, 17 MB zip, runpath set. The unpacked app ran under Xvfb with an empty config, loaded poppler from
+  its `lib/` and rendered a PDF. The workflow YAML parses. Not tested: the workflow on GitHub, the Ubuntu 24.04
+  build (Docker's daemon was not running here), the Windows script, and the Windows zip on a clean machine.
+- **Outstanding issues:** the repo has no LICENSE file; the zips distribute GPL poppler, so pdfview-app's
+  binaries must be GPL and should ship the licence text. The Linux zip needs glibc 2.39+. Windows runner
+  minutes count double on a private repo. Some libraries in `lib/` go unused when a system library loads the
+  system's copy first (bz2, brotli through freetype); this is harmless.
+- **Next steps:** run the workflow by hand once (Actions → Release → Run workflow) and try the Windows zip on
+  a machine without MSYS2; add a LICENSE (GPL-3.0-or-later or GPL-2.0-or-later) and copy it into the zips.
+
+## 2026-11-26 13:30 +03:00 — GPL-2.0 licence; repository made public
+
+- **Changes made:** added `LICENSE` (the GNU GPL version 2 text) and set the README's licence line to
+  GPL-2.0-only. Both packaging scripts copy `LICENSE` into the release zips, next to the README. `.gitignore`
+  now ignores `/.cache/` (clangd's index). The GitHub repository was made public and tagged `v0.0.1`, the
+  first run of the release workflow.

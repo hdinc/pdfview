@@ -27,6 +27,8 @@ does no file I/O of its own and launches no processes.
   - `C:\dev\github\Hd` is an older, separate checkout: don't edit that one.
 - `tests/`: doctest. `fixtures.h` writes the test PDFs (text, links, outline, labels); no PDFs are stored.
   `test_settings.cpp` (built with the app) compiles `app/Settings.cpp` and runs copies of itself as writers.
+- `packaging/`: `bundle-linux.sh` / `bundle-windows.sh` pack a built pdfview-app with its libraries into a zip.
+  `.github/workflows/release.yml` runs them on CI.
 - `build/` is output. `doc/plans/` holds plans.
 
 ## Commands (MSYS2 ucrt64)
@@ -50,6 +52,11 @@ does no file I/O of its own and launches no processes.
 - A TigerVNC XFCE session runs on `DISPLAY=:1`; use it, or `Xvfb :77`, to drive the app with `xdotool`; take
   screenshots with `import -window <id>`. Click with `mousedown`/`mouseup` after moving: a move and a click in the same xdotool
   call miss ImGui tabs.
+
+## Releases
+- Push a `v*` tag: `.github/workflows/release.yml` builds and tests on ubuntu-24.04 and windows-latest (MSYS2
+  UCRT64), zips both and publishes a GitHub release. A manual run (Actions → Release) keeps the zips as artifacts.
+- Local Linux zip: `packaging/bundle-linux.sh <build dir> <name> <out dir>` (needs patchelf and zip).
 
 ## Decisions
 - Backend is poppler-glib. poppler-cpp has no TOC targets or links; MuPDF is AGPL and harder to package.
@@ -106,6 +113,10 @@ does no file I/O of its own and launches no processes.
 - Contents draws the current title in the UI font's bold face when available.
 - Contents rows use zero vertical cell padding so the highlight reaches both row edges.
 - The Contents context menu expands and collapses branches and highlights its target row.
+- Release zips: Windows is built natively in MSYS2 (exe + DLLs from `ldd`, `etc/fonts`, `share/poppler` next to
+  it, where fontconfig and poppler look). Linux is built on Ubuntu 24.04 (glibc 2.39 floor) with `lib/` on an
+  `$ORIGIN/lib` runpath; glibc, libstdc++, GL, X11, fontconfig and freetype come from the system.
+- Licence: GPL-2.0-only (`LICENSE`), shipped in the release zips. The GitHub repo is public since 2026-11-26.
 - Annotations are out of scope; documents open read-only.
 - Preferences live in one Settings window (`App::drawSettingsWindow`, Ctrl+Comma): Appearance, Viewing, Keyboard.
   The theme and shortcut editors stay separate windows opened from it. The Settings menu has only Settings... and
@@ -137,6 +148,9 @@ does no file I/O of its own and launches no processes.
   build pdforg against the library.
 
 ## Ruled out
+- Cross-compiling the Windows release on Linux (2026-11-26): Hd's resource step runs the target's `hdres-bin`
+  and links with the host `ld -b binary`, and poppler/cairo/glib/glfw would need an MSYS2 sysroot. Native MSYS2
+  on CI is simpler; revisit only if Windows CI minutes become a problem.
 - poppler's core private headers (unstable API).
 - nativefiledialog-extended (GTK build dependency on Linux).
 - Fixed-duration ease-out scroll glides: restarting the curve on each input makes the speed jump.
