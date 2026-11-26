@@ -576,3 +576,28 @@ TEST_CASE("Layout: view modes")
     v.goToPage(2, l, 50);
     CHECK(v.y == doctest::Approx(l.top[2] + 50));
 }
+
+TEST_CASE("View: page turns start from the top row when several rows fit")
+{
+    std::vector<PageSize> pages(10, PageSize{100, 100});
+    for (double gap : {10.0, 0.0}) {
+        Layout l;
+        l.gap = gap;
+        l.build(pages, {1, true});
+        View v;
+        v.w = 100;
+        v.h = 5 * 100 + 4 * gap; // five rows fit
+        v.zoom = 1;
+        v.goToPage(2, l);
+        CHECK(v.topRow(l) == 2);
+        CHECK(v.currentPage(l) == 4); // the centre is two rows further down
+        // a turn back goes up from the top row, not from the centre's
+        v.goToPage(v.topRow(l) - 1, l);
+        CHECK(v.y == doctest::Approx(l.rowTop[1]));
+        // a little rounding below a row's top still counts as that row
+        v.y = l.rowTop[3] - 1e-9;
+        CHECK(v.topRow(l) == 3);
+        v.y = l.rowTop[3] + 40;
+        CHECK(v.topRow(l) == 3);
+    }
+}

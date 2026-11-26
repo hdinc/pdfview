@@ -80,6 +80,9 @@ struct View {
     double fitPage(const Layout& l, int page) const;
     // the page at the view's centre
     int currentPage(const Layout& l) const;
+    // the row page turns start from: the one at the view's top edge (the
+    // shown row when not continuous)
+    int topRow(const Layout& l) const;
     // shows y points below the page's top (its top when < 0) at the top of
     // the view
     void goToPage(int page, const Layout& l, double yInPage = -1);

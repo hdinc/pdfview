@@ -160,6 +160,15 @@ int View::currentPage(const Layout& l) const
     return l.pageAt(cx, cy);
 }
 
+int View::topRow(const Layout& l) const
+{
+    if (l.rows() == 0) return 0;
+    if (!l.mode.continuous) return std::clamp(row, 0, l.rows() - 1);
+    // a pixel of slack, so a row placed at the top by goToPage counts even
+    // after rounding (and with no gaps, where rowAt has none)
+    return l.rowAt(y + 1 / zoom);
+}
+
 void View::goToPage(int page, const Layout& l, double yInPage)
 {
     if (l.pages.empty()) return;

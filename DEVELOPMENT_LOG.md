@@ -1226,3 +1226,18 @@ in reading order wins, so a section starting where its chapter does is still the
 **Testing:** new `tests/test_outline.cpp` (nesting, ties, the 40-point allowance, unknown y, an out-of-order
 entry); all 11 ctest tests pass on Linux. Checked in pdforg's GUI with Crafting Interpreters: after a jump to
 "3. The Lox Language" and scrolling, that entry stays highlighted. Not tested on Windows.
+
+## 2026-11-26 12:00 +03:00 — Next/Previous Page when several rows fit
+
+- **Changes made:** in continuous mode, zoomed out so several rows show, Previous Page could move forward and
+  Next Page could do nothing. `Viewer::nextPage`/`prevPage` took the row of `currentPage()` (the page at the
+  view's centre) and then put the row after or before it at the view's top. With five rows on screen the
+  centre row is two below the top one, so "previous" (centre − 1) was still below the top row and moved
+  forward; near the end, the target row could not reach the top past the scroll clamp, so nothing moved.
+- **How it works:** new `View::topRow` (`src/Layout.cpp`): the row at the view's top edge in continuous mode,
+  with one screen pixel of slack so a row placed there by `goToPage` still counts after rounding or with page
+  gaps off; the shown row otherwise. Both page commands step from it.
+- **Testing:** new test "View: page turns start from the top row when several rows fit" (gaps on and off);
+  all ctest suites pass on Linux. Not checked by hand in the GUI.
+- **Outstanding issues:** at the very end of the document, Next Page still does nothing when the remaining
+  rows already fit on screen (there is nowhere to scroll); that is expected.

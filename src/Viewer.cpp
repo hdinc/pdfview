@@ -427,14 +427,16 @@ void Viewer::goToPage(int page, bool record) { goTo({std::clamp(page, 0, std::ma
 void Viewer::nextPage()
 {
     if (!mLaidOut) return;
-    int r = mLayout.rowOf[static_cast<size_t>(currentPage())];
+    // from the top row, where goToPage puts its target: the centre's row
+    // (currentPage) is further down when several rows fit in the view
+    int r = mView.topRow(mLayout);
     if (r + 1 < mLayout.rows()) goToPage(mLayout.rowFirst[static_cast<size_t>(r + 1)], false);
 }
 
 void Viewer::prevPage()
 {
     if (!mLaidOut) return;
-    int r = mLayout.rowOf[static_cast<size_t>(currentPage())];
+    int r = mView.topRow(mLayout);
     if (r > 0) goToPage(mLayout.rowFirst[static_cast<size_t>(r - 1)], false);
 }
 

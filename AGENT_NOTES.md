@@ -83,6 +83,7 @@ does no file I/O of its own and launches no processes.
 - Thumbnail drags move through document pages in reading order, including across grid gaps.
 - Ctrl+wheel changes the thumbnail grid by one column per notch within the existing size limits.
 - Thumbnail filtering is per document and replaces the grid once after a 300 ms debounce.
+- Next/Previous Page step from the row at the view's top edge (`View::topRow`), not the centre's `currentPage`.
 - In non-continuous view, one wheel notch at the page edge turns the page.
 - Scroll glides use `ScrollMotion` (`include/pdfview/ScrollMotion.h`), a critically damped spring: steps start at full speed and decay, screenfuls ease in and brake, and new input never makes the speed jump. The cap is 3,200 px/s at scale 1. Document-end jumps and non-continuous row turns are immediate.
 - Default keys follow the table agreed on 2026-11-24 (vi-like keys first): J/K scroll, H/L or PgUp/PgDown pages,
